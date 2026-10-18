@@ -1,6 +1,6 @@
 # Contributing to Dockspire
 
-Start from current `main`, create a focused feature or fix branch, and open a pull request back to `main`. The complete maintained project belongs on `main`: application source, tests, build and release tooling, dependency manifests, notices and documentation. Keep private assistant settings, credentials, caches, diagnostics and generated binaries out of Git. The legacy `development` branch is historical, not an active contribution target.
+Start from current `main`, create a focused feature or fix branch, and open a pull request back to `main`. The complete maintained project belongs on `main`: application source, tests, build and release tooling, dependency manifests, notices and documentation. Keep private assistant settings, credentials, caches, diagnostics and generated binaries out of Git. The legacy `development` branch has been removed; use short-lived branches and pull requests to `main`.
 
 Before merging:
 

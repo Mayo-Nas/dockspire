@@ -4,7 +4,7 @@ The canonical repository is [Mayo-Nas/dockspire](https://github.com/Mayo-Nas/doc
 
 ## Branches and pull requests
 
-`main` contains the complete maintained source: application code, tests, CI, build/release tooling, dependency manifests, user and contributor documentation, assets and required notices. Use short-lived feature/fix branches and reviewed pull requests to `main`. Merge the full reviewed change rather than selecting application files for a separate branch. The legacy `development` branch is historical and retained unchanged; do not use it as the active integration or release branch. Removing remote branches requires separate approval.
+`main` contains the complete maintained source: application code, tests, CI, build/release tooling, dependency manifests, user and contributor documentation, assets and required notices. Use short-lived feature/fix branches and reviewed pull requests to `main`. Merge the full reviewed change rather than selecting application files for a separate branch. The legacy `development` branch has been removed. Do not recreate a permanent split between application files and maintained tests/tools. Removing remote branches requires separate approval.
 
 Follow [CONTRIBUTING.md](../CONTRIBUTING.md): independent code and security reviews plus successful CI are required before merge. Configure branch protection/rulesets with required pull requests, reviews and checks when the account plan supports them. The private repository currently has unprotected branches and a plan restriction on the needed ruleset/protection capability. These requirements must therefore be followed manually; do not claim automatic enforcement.
 

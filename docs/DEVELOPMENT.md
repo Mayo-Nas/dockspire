@@ -4,7 +4,7 @@
 
 `main` holds the complete source, regression tests, CI, documentation and release tools. Keep runtime images and release assets minimal through packaging, rather than maintaining different file sets on separate branches.
 
-Create a short-lived branch from `main`, make focused changes, and open a pull request targeting `main`. Run the checks below, obtain independent code and security reviews, and wait for hosted CI before merging. See [CONTRIBUTING.md](../CONTRIBUTING.md) and [repository policy](GITHUB.md). The old `development` branch is historical; do not selectively promote files from it or target it with new work.
+Create a short-lived branch from `main`, make focused changes, and open a pull request targeting `main`. Run the checks below, obtain independent code and security reviews, and wait for hosted CI before merging. See [CONTRIBUTING.md](../CONTRIBUTING.md) and [repository policy](GITHUB.md). The legacy `development` branch has been removed; do not recreate the split file-set workflow.
 
 Run from the repository root. Go 1.27.2 builds `cmd/dockspire`; backend code/tests are in `internal/app`. `web` embeds runtime HTML/CSS/JavaScript and assets, excluding Go source. Node 24 runs UI regression tests; no npm installation/build is required.
 
@@ -52,7 +52,7 @@ DOCKSPIRE_IMAGE=dockspire:local docker compose -f deploy/compose.yaml up -d --pu
 DOCKSPIRE_IMAGE=dockspire:local docker compose -f deploy/compose.yaml logs app
 ```
 
-Follow [installation](INSTALL.md) for browser setup and optional HTTPS. The current HTTP template requires a matching source-built image; published v0.1.0 uses its tagged HTTPS template. This uses the same `dockspire` project and `dockspire_data` volume as the release template; use a dedicated development host, never a host with an existing Dockspire installation. It connects to the host Docker socket. For fictional inventory without Docker access, use the native demo above. `deploy/development/compose.demo.yaml` is also retained for existing demo workspaces and requires offline administrator initialization.
+Follow [installation](INSTALL.md) for browser setup and optional HTTPS. The HTTP template supports the published v0.1.1 image or a matching source build; v0.1.0 uses its tagged HTTPS template. This uses the same `dockspire` project and `dockspire_data` volume as the release template; use a dedicated development host, never a host with an existing Dockspire installation. It connects to the host Docker socket. For fictional inventory without Docker access, use the native demo above. `deploy/development/compose.demo.yaml` is also retained for existing demo workspaces and requires offline administrator initialization.
 
 The old root Compose file, preview templates, archive packagers and archive installers have been retired. Existing deployments must retain their own configuration and data; see [upgrade and rollback](INSTALL.md#upgrade-and-rollback). Building locally does not publish a tag, release or image. Publication requires explicit authorization; see [GITHUB.md](GITHUB.md).
 
@@ -66,7 +66,7 @@ Use ignored `.local/` or an external workspace for caches, binaries, fixtures, r
 
 Dockspire is one Go process serving embedded browser assets and a Docker/Compose API, with no frontend build step. The saved library stores complete configuration revisions. Durable deployment attempts distinguish saved, attempted, and observed state; interrupted work requires inspection before recovery. Portable archives exclude administrator credentials and TLS keys. Back up workload volumes and bind-mounted data separately.
 
-Primary installations use `deploy/compose.yaml`, a versioned Linux amd64 image, a persistent data volume, HTTP on 8787 (optional HTTPS), and browser administrator setup. Changing existing project names or storage paths requires an explicit migration. The Docker socket grants host administration. Use a trusted management network or a verified SSH tunnel. Multi-host management is not implemented. Current source supports an explicit, conservatively checked Portainer takeover workflow; it never runs automatically.
+Primary installations use `deploy/compose.yaml`, a versioned Linux amd64 image, a persistent data volume, HTTP on 8787 (optional HTTPS), and browser administrator setup. Changing existing project names or storage paths requires an explicit migration. The Docker socket grants host administration. Use a trusted management network or a verified SSH tunnel. Multi-host management is not implemented. v0.1.1 supports an explicit, conservatively checked Portainer takeover workflow; it never runs automatically.
 
 ## Dependency attribution
 
