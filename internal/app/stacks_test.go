@@ -7,9 +7,12 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"go.yaml.in/yaml/v3"
 )
 
 const testCompose = "services:\n  web:\n    image: nginx:alpine\n    environment:\n      PASSWORD: fixture-not-a-real-secret\n"
@@ -227,7 +230,14 @@ func TestImportSourceChangeAndAuthorization(t *testing.T) {
 }
 
 func TestEnvironmentImportCanBeExcluded(t *testing.T) {
-	library, _, _ := importFixture(t)
+	library, _, dir := importFixture(t)
+	// An unreadable-as-file entry proves excluded environment paths are not opened.
+	if err := os.Remove(filepath.Join(dir, "stack.env")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "stack.env"), 0700); err != nil {
+		t.Fatal(err)
+	}
 	library.includeEnvironment = false
 	preview, files, err := library.importPreview(context.Background(), "existing")
 	if err != nil {
@@ -283,5 +293,100 @@ func TestStackMutationsRequireSameOriginToken(t *testing.T) {
 		if response.Code != test.want {
 			t.Fatalf("got %d, want %d: %s", response.Code, test.want, response.Body.String())
 		}
+	}
+}
+
+func TestPortainerImportSessionCapabilities(t *testing.T) {
+	for _, tc := range []struct {
+		name                                        string
+		allow, root, env, demo, wantImport, wantEnv bool
+	}{
+		{name: "default"},
+		{name: "environment-alone", env: true},
+		{name: "missing-root", allow: true, env: true},
+		{name: "missing-opt-in", root: true, env: true},
+		{name: "compose-only", allow: true, root: true, wantImport: true},
+		{name: "with-environment", allow: true, root: true, env: true, wantImport: true, wantEnv: true},
+		{name: "demo", allow: true, root: true, env: true, demo: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			library, source, _ := testLibrary(t)
+			library.allowImport, library.includeEnvironment = tc.allow, tc.env
+			if tc.root {
+				library.portainerRoot = t.TempDir()
+			}
+			if tc.demo {
+				library.runner = demoCompose{}
+			}
+			req := httptest.NewRequest("GET", "/api/session", nil)
+			req.Host = "localhost:8787"
+			response := httptest.NewRecorder()
+			newHandler(source, library).ServeHTTP(response, req)
+			var capabilities struct {
+				ImportEnabled            bool `json:"importEnabled"`
+				EnvironmentImportEnabled bool `json:"environmentImportEnabled"`
+			}
+			if response.Code != 200 || json.Unmarshal(response.Body.Bytes(), &capabilities) != nil {
+				t.Fatal("session request failed", response.Code)
+			}
+			if capabilities.ImportEnabled != tc.wantImport || capabilities.EnvironmentImportEnabled != tc.wantEnv {
+				t.Fatal("incorrect capabilities", capabilities)
+			}
+		})
+	}
+}
+
+func TestPortainerImportDeployment(t *testing.T) {
+	type mount struct {
+		Type, Source, Target string
+		ReadOnly             bool `yaml:"read_only"`
+		Bind                 struct {
+			CreateHostPath *bool `yaml:"create_host_path"`
+		}
+	}
+	type service struct {
+		Command []string
+		Volumes []mount
+	}
+	type definition struct{ Services map[string]service }
+	read := func(name string) definition {
+		t.Helper()
+		raw, err := os.ReadFile(filepath.Join("..", "..", "deploy", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var result definition
+		if err := yaml.Unmarshal(raw, &result); err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	// Base mounts include string shorthand, so decode only its command here.
+	raw, err := os.ReadFile(filepath.Join("..", "..", "deploy", "compose.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var base struct {
+		Services map[string]struct{ Command []string }
+	}
+	if err := yaml.Unmarshal(raw, &base); err != nil {
+		t.Fatal(err)
+	}
+	override := read("compose.portainer.yaml")
+	app := override.Services["app"]
+	command := base.Services["app"].Command
+	if len(command) == 0 || len(app.Command) <= len(command) || !reflect.DeepEqual(app.Command[:len(command)], command) {
+		t.Fatal("import override changed primary security arguments")
+	}
+	want := []string{"--portainer-root", "/portainer/compose", "--allow-portainer-import", "--import-environment=${DOCKSPIRE_IMPORT_ENVIRONMENT:-false}"}
+	if !reflect.DeepEqual(app.Command[len(command):], want) {
+		t.Fatal("unexpected import arguments", app.Command)
+	}
+	if len(override.Services) != 1 || len(app.Volumes) != 1 {
+		t.Fatal("override changes unrelated services or mounts")
+	}
+	volume := app.Volumes[0]
+	if volume.Type != "bind" || !strings.HasPrefix(volume.Source, "${DOCKSPIRE_PORTAINER_COMPOSE_DIR:?") || volume.Target != "/portainer/compose" || !volume.ReadOnly || volume.Bind.CreateHostPath == nil || *volume.Bind.CreateHostPath {
+		t.Fatal("source mount is not explicit, read-only and existing-path-only")
 	}
 }

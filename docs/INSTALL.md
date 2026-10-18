@@ -95,6 +95,34 @@ Save it as `compose.override.yaml` beside `compose.yaml`; Compose loads both aut
 
 An existing TLS reverse proxy remains supported through the legacy HTTP listener plus an explicit `--external-url https://...`. Bind that backend to loopback or a private proxy network; the normal container template uses direct TLS and needs no proxy.
 
+## Optional Portainer configuration import
+
+Dockspire can preview and save configuration copies from supported Portainer Docker Compose stacks on the same Docker host. This optional read-only source import does not stop Portainer, adopt workloads, edit its source files, or deploy containers. Imported copies remain read-only in Dockspire. No Portainer API token, database access, or full Portainer data-volume mount is needed.
+
+Download `deploy/compose.portainer.yaml` from the same release/commit as the primary Compose file, saving it beside `compose.yaml` as `compose.portainer.yaml`. Enable it only when authorized to read those stack definitions, which can contain secrets even without associated environment files. In your private local `.env`, set:
+
+```dotenv
+# Example only: use the actual authorized host compose subdirectory.
+DOCKSPIRE_PORTAINER_COMPOSE_DIR=/srv/portainer/data/compose
+# Optional, separate authorization to copy .env and stack.env values:
+# DOCKSPIRE_IMPORT_ENVIRONMENT=true
+```
+
+Mount only Portainer's `compose` subdirectory, never its entire data volume. For a named Portainer data volume, an administrator must identify its actual host compose directory without copying database files or credentials into Dockspire. The override requires an explicit existing host path, mounts it read-only at `/portainer/compose`, and does not create a missing path. Environment-file copying defaults to false. Files referenced from Compose beyond `.env` and `stack.env`, and values held only in Portainer's database, are not copied.
+
+Apply only the manager service:
+
+```sh
+docker compose -f compose.yaml -f compose.portainer.yaml config --quiet
+docker compose -f compose.yaml -f compose.portainer.yaml up -d --no-deps app
+```
+
+Use the same two `-f` arguments for subsequent manager operations while this feature is enabled. The override preserves the primary HTTPS, administrator setup, TLS-host and external-origin settings. If you already use a custom command override, merge its certificate/listener arguments with the import arguments explicitly: Compose replaces command lists rather than appending them. Preserve the existing project, image, port and data volume. This may restart Dockspire and end browser sessions; it does not restart managed workloads.
+
+After signing in, choose **Stacks → Import stack → Portainer**. Select a discovered stack, review the masked Compose preview, warnings and environment-file inclusion status, then choose **Import definition · leave containers running**. Dockspire rechecks the source fingerprint before saving. Source access requires existing containers whose Compose source label identifies `/data/compose/<numeric-id>/docker-compose.yml` or `.yaml`. Swarm stacks, other source layouts, and stacks with no existing containers are not discovered by this import path. Uploaded ordinary Compose files remain available through the other import choices for creating independent new drafts with unused project names.
+
+Only the supported Compose and explicitly authorized environment files are copied. Portainer database files, separate key files, arbitrary attachments and workload data are excluded. The copied Compose text and environment files can contain workload credentials or keys. Keep the library and exported archives private. Removing the override and restarting `app` with the base file disables further Portainer reads; previously saved copies remain in the library. Workload migration requires a separate supported procedure and is not performed here.
+
 ## Upgrade and rollback
 
 Select a tested image version or digest in `.env`, read its release notes, record the previous reference/digest, and back up the data volume privately while `app` is stopped. Retain the old image locally. Then run:

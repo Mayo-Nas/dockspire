@@ -42,7 +42,7 @@ Choose **Stacks → Add stack**, enter an unused Compose project name and YAML, 
 
 Image-based services, named volumes, absolute Linux bind paths, and `.env`/`stack.env` are supported. Builds, includes, extends and arbitrary attachments are not supported by the editor. Treat command/comment text as sensitive too: automatic masking cannot identify every arbitrary secret.
 
-**Import stack** accepts ordinary Compose/environment files from Compose-based tools through the draft editor. It does not automatically read another manager's files or adopt running workloads. Proprietary backup formats are unsupported. Portainer source-file discovery is a separate explicit opt-in requiring a reviewed read-only mount; leave it disabled unless authorized.
+**Import stack** accepts ordinary Compose/environment files from Compose-based tools through the draft editor. It does not automatically read another manager's files or adopt running workloads. Proprietary backup formats are unsupported. Choose **Portainer** to preview and save a read-only configuration copy of a discovered stack after completing the [optional source-access setup](INSTALL.md#optional-portainer-configuration-import). The preview lists whether associated environment files are included and hides recognized environment values. Only confirm the import after reviewing its warnings. Portainer continues managing the existing containers; imported copies cannot be edited, deployed, or used for container lifecycle actions in Dockspire.
 
 ## Starting, stopping and restarting
 

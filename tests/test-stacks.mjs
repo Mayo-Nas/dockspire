@@ -35,6 +35,8 @@ let submitted;
 let jobImages;
 let pendingPage;
 let pendingReview;
+let pendingImport, importedCopy = false;
+const importRequests = [];
 let emptyFirstPage = false;
 let comparison = { status: 'available', changes: [
   { scope: 'Service web', field: 'Image', kind: 'changed', before: 'fixture/web:v1', after: 'fixture/web:v2' },
@@ -75,6 +77,15 @@ const context = vm.createContext({
   requireSignIn: response => { assert.notEqual(response.status, 401, 'Archive session unexpectedly expired'); },
   api: async (path, method, input) => {
     const url = new URL(path, 'http://fixture');
+    if (url.pathname.endsWith('/preview-import')) {
+      importRequests.push({ path, method });
+      if (pendingImport) return new Promise(resolve => { pendingImport.resolve = resolve; });
+      return { ...record, origin: 'portainer', fingerprint: 'fixture-import-fingerprint' };
+    }
+    if (url.pathname.endsWith('/import')) {
+      importRequests.push({ path, method, input }); importedCopy = true;
+      return { ...record, origin: 'portainer' };
+    }
     if (url.pathname.endsWith('/operations') && method !== 'POST') {
       pageRequests.push(url.searchParams.get('cursor'));
       assert.equal(url.searchParams.get('details'), '1');
@@ -90,7 +101,7 @@ const context = vm.createContext({
       submitted = input;
       return { name: 'example', kind: 'recover', status: 'succeeded', stage: 'complete', message: 'Fixture recovery succeeded', images: jobImages };
     }
-    return { ...record, recoveryRequired, deployedAt: recoveryRequired ? '' : '2026-10-16T12:00:00Z' };
+    return { ...record, origin: importedCopy ? 'portainer' : 'new', recoveryRequired, deployedAt: recoveryRequired ? '' : '2026-10-16T12:00:00Z' };
   },
 });
 vm.runInContext(await fs.readFile(new URL('../web/stacks.js', import.meta.url), 'utf8'), context, { filename: 'stacks.js' });
@@ -237,3 +248,47 @@ for (const supersede of ['close', 'newer']) {
   pendingReview = null;
 }
 console.log('Stack history, recovery, comparison, private archive, and observed-image UI checks passed');
+
+// Portainer source access is optional; opening disabled setup must read nothing.
+get('import-stack').events.click();
+await buttons().find(button => button.textContent === 'Choose Portainer').events.click();
+assert(texts(body).some(text => text.includes('compose.portainer.yaml')));
+assert(!buttons().some(button => button.textContent === 'Preview import'));
+assert.equal(importRequests.length, 0);
+context.session.importEnabled = true;
+get('import-stack').events.click();
+await buttons().find(button => button.textContent === 'Choose Portainer').events.click();
+assert(texts(body).some(text => text.includes('No supported, unimported')));
+assert(texts(body).some(text => text.includes('Swarm stacks')));
+context.snapshot.stacks = [{ name: 'example', importId: '4', definition: 'Not imported' }, { name: 'saved', importId: '5', definition: 'Saved' }];
+function choosePortainer() {
+  get('import-stack').events.click();
+  buttons().find(button => button.textContent === 'Choose Portainer').events.click();
+}
+for (const include of [false, true]) {
+  context.session.environmentImportEnabled = include;
+  choosePortainer();
+  assert(texts(body).some(text => text.includes(include ? 'files will be copied, when present' : 'files are excluded')));
+  assert.equal(body.querySelectorAll('option').length, 1, 'Saved copies must not be imported again');
+}
+for (const supersede of ['close', 'newer']) {
+  choosePortainer(); body.querySelectorAll('select')[0].value = 'example';
+  pendingImport = {};
+  const loading = buttons().find(button => button.textContent === 'Preview import').events.click();
+  if (supersede === 'close') get('stack-dialog').close(); else get('backup-library').events.click();
+  const title = get('stack-dialog-title').textContent;
+  pendingImport.resolve({ ...record, origin: 'portainer' }); await loading;
+  assert.equal(get('stack-dialog').open, supersede !== 'close');
+  assert.equal(get('stack-dialog-title').textContent, title);
+  pendingImport = null;
+}
+choosePortainer(); body.querySelectorAll('select')[0].value = 'example';
+await buttons().find(button => button.textContent === 'Preview import').events.click();
+assert.equal(importedCopy, false, 'Preview must not save the copy');
+assert(texts(body).some(text => text.includes('files will be copied, when present')), 'The final preview must retain the environment-copy disclosure');
+await buttons().find(button => button.textContent === 'Import definition · leave containers running').events.click();
+assert.equal(importedCopy, true);
+assert.deepEqual(JSON.parse(JSON.stringify(importRequests.at(-1))), { path: '/api/stacks/example/import', method: 'POST', input: { fingerprint: 'fixture-import-fingerprint' } });
+assert(texts(body).some(text => text.includes('This copy is read-only')));
+assert(!buttons().some(button => /Edit configuration|Review stack|Start stack|Stop stack|Restart stack/.test(button.textContent)));
+console.log('Optional Portainer import setup, preview, copy, stale response, and read-only UI checks passed');

@@ -256,7 +256,8 @@ func newApplicationHandler(source inventorySource, library *stackLibrary, access
 		if library != nil {
 			_, isDemo = library.runner.(demoCompose)
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"csrfToken": requestCSRF, "stackLibrary": library != nil, "importEnabled": library != nil && library.allowImport, "environmentImportEnabled": library != nil && library.includeEnvironment, "deployEnabled": library != nil && !isDemo})
+		importEnabled := library != nil && library.allowImport && library.portainerRoot != "" && !isDemo
+		writeJSON(w, http.StatusOK, map[string]any{"csrfToken": requestCSRF, "stackLibrary": library != nil, "importEnabled": importEnabled, "environmentImportEnabled": importEnabled && library.includeEnvironment, "deployEnabled": library != nil && !isDemo})
 	})
 	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
 		capability := "inventory-only"

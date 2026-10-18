@@ -335,7 +335,7 @@ window.stackUI = (() => {
     if (current !== generation) return;
     const history = historyResult.jobs; open(name); body.append(window.monitorUI.stackServices(name));
     historyResult.warnings.forEach(warning => body.append(node('p', warning, 'notice')));
-    if (record.origin === 'portainer') body.append(node('p', 'Portainer still manages this stack. Migration and updates remain disabled.', 'notice'));
+    if (record.origin === 'portainer') body.append(node('p', 'Imported configuration copy · Portainer still manages this stack. This copy is read-only; editing, deployment, and container actions are unavailable.', 'notice'));
     else {
       const active = history.find(job => job.status === 'running'), pending = record.deployedAt && record.appliedRevision !== record.fingerprint;
       body.append(node('p', active ? 'A container operation is in progress. Wait for its result before making changes.' : record.recoveryRequired ? 'A previous deployment needs inspection. Existing containers may have changed. Review whole-stack recovery or use the reviewed controls for existing containers.' : record.deployedAt ? (pending ? 'Saved configuration has unapplied changes. Review and update the whole stack to apply them.' : `Last successful deployment: ${new Date(record.deployedAt).toLocaleString()}`) : 'Saved draft. No containers have been deployed by this draft.', 'notice'));
@@ -384,10 +384,10 @@ window.stackUI = (() => {
   function importStack(selected) {
     open('Import a stack');
     body.append(node('p', 'Choose where your stack configuration comes from.', 'muted'));
-    body.append(node('p', 'Importing configuration leaves running containers with their current manager. Existing-stack takeover remains deferred.', 'notice'));
+    body.append(node('p', 'Import copies configuration. Existing containers and their manager remain unchanged; taking over an existing stack is not supported.', 'notice'));
     const sources = node('div', undefined, 'import-sources');
     [
-      ['Portainer', session?.importEnabled ? 'Source access enabled' : 'Source access disabled', 'Preview and copy a discovered Portainer definition when source access is enabled. Running-stack migration remains deferred.', () => importPortainer(selected)],
+      ['Portainer', session?.importEnabled ? 'Source access enabled' : 'Source access disabled', 'Preview and save a read-only copy of a discovered Portainer Compose stack. Portainer keeps managing its containers.', () => importPortainer(selected)],
       ['Dockge', 'Compose file → new draft', 'Load or paste the stack’s compose.yaml and optionally its environment file.', () => editorForm(null, 'Dockge')],
       ['Docker Compose', 'Compose file → new draft', 'Load compose.yaml or docker-compose.yml from a manually managed project.', () => editorForm(null, 'Docker Compose')],
       ['Other manager', 'Compose file → new draft', 'Use a standard Docker Compose file from another manager. Proprietary backup formats are not supported.', () => editorForm(null, 'another manager')],
@@ -401,17 +401,19 @@ window.stackUI = (() => {
   function importPortainer(selected) {
     open('Import from Portainer');
     body.append(button('Back to import sources', () => importStack()));
-    if (!session?.importEnabled) { body.append(node('p', 'Migration is deferred. Portainer source access is disabled and existing stacks remain managed by Portainer.', 'notice')); return; }
-    body.append(node('p', 'Import copies configuration without changing running containers.', 'muted'));
+    if (!session?.importEnabled) { body.append(node('p', 'Portainer source access is disabled. Enable the optional compose.portainer.yaml configuration described in the installation guide, using an authorized read-only mount of only Portainer’s compose directory. Opening this screen does not read Portainer files.', 'notice')); return; }
+    body.append(node('p', 'Import saves a read-only configuration copy. Portainer keeps managing the stack; containers and source files are unchanged.', 'notice'));
+    const environmentNotice = session.environmentImportEnabled ? 'Associated .env and stack.env files will be copied, when present, into Dockspire’s private library. Exported backups can contain those values.' : 'Associated .env and stack.env files are excluded. An operator must explicitly enable environment-file import to include them.';
+    body.append(node('p', environmentNotice, 'muted'));
     const choices = (snapshot?.stacks || []).filter(item => item.importId && item.definition !== 'Saved');
-    if (!choices.length) { body.append(node('p', 'No unimported Portainer projects were found.', 'notice')); return; }
+    if (!choices.length) { body.append(node('p', 'No supported, unimported Portainer Compose stacks were found. Discovery requires existing containers with a /data/compose/<numeric-id>/docker-compose.yml or .yaml source label. Swarm stacks and stacks without containers are not supported.', 'notice')); return; }
     const select = node('select'); choices.forEach(item => { const option = node('option', item.name); option.value = item.name; select.append(option); }); if (selected) select.value = selected;
     body.append(field('Existing Portainer stack', select));
     body.append(button('Preview import', () => operation(async () => {
       const current = generation, name = select.value;
       const preview = await api(`/api/stacks/${encodeURIComponent(name)}/preview-import`, 'POST');
       if (current !== generation || !dialog.open) return;
-      open(`Import ${name}`); definition(preview);
+      open(`Import ${name}`); definition(preview); body.append(node('p', environmentNotice, 'notice'));
       body.append(button('Import definition · leave containers running', () => operation(async () => { const current = generation; await api(`/api/stacks/${encodeURIComponent(name)}/import`, 'POST', { fingerprint: preview.fingerprint }); await refresh(); if (current !== generation || !dialog.open) return; await showSaved(name); }), true));
     }), true));
   }

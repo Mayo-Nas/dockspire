@@ -20,7 +20,7 @@ The recommended installation uses a **versioned container image and Docker Compo
 
 **No source, release or container image has been published yet.** Registry installation becomes available after an explicitly approved push and image publication. See [Linux installation and upgrades](docs/INSTALL.md) for complete commands, private-registry access, certificates, persistent storage and rollback. [Offline archives](docs/INSTALL-ARCHIVE.md) remain an alternative.
 
-Docker packages remain managed by the host. Dockspire does not install or upgrade them automatically. Existing Portainer projects remain view-only unless a future migration is explicitly requested.
+Docker packages remain managed by the host. Dockspire does not install or upgrade them automatically. The optional [Portainer import setup](docs/INSTALL.md#optional-portainer-configuration-import) enables previewing and saving read-only configuration copies. Portainer continues managing those workloads; Dockspire does not take them over.
 
 ## Repository layout
 
