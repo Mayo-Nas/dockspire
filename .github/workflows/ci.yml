@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Check (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    env:
+      GOTELEMETRY: 'off'
+      GOTOOLCHAIN: local
+      CGO_ENABLED: '0'
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.2'
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Run Go tests
+        run: go test ./...
+
+      - name: Run Go vet
+        run: go vet ./...
+
+      - name: Build application
+        shell: bash
+        run: go build -trimpath -o "$RUNNER_TEMP/dockspire${{ runner.os == 'Windows' && '.exe' || '' }}" ./cmd/dockspire
+
+      - name: Check browser JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in web/*.js; do
+            node --check "$script"
+          done
+
+      - name: Run browser-code regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/test-auth.mjs
+          node tests/test-setup.mjs
+          node tests/test-navigation.mjs
+          node tests/test-stacks.mjs
+          node tests/test-revisions.mjs
+
+      - name: Check installation scripts with fixtures
+        if: runner.os == 'Linux'
+        run: |
+          set -eu
+          for script in scripts/*.sh tests/*.sh; do
+            bash -n "$script"
+          done
+          sh tests/test-installation.sh
+
+  container:
+    name: Check Linux container installation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build image and check disposable installation
+        run: |
+          set -eu
+          docker build -t dockspire:ci .
+          bash tests/test-container.sh dockspire:ci
+      - name: Set up Go for image vulnerability checks
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.2'
+      - name: Check explicit takeover with disposable workloads
+        run: |
+          set -eu
+          GOTELEMETRY=off GOTOOLCHAIN=local CGO_ENABLED=0 DOCKSPIRE_TAKEOVER_TEST=1 DOCKSPIRE_TEST_IMAGE="$(docker image inspect --format '{{.Id}}' dockspire:ci)" go test ./internal/app -run '^TestTakeoverDockerIntegration$' -count=1 -timeout=5m
+      - name: Scan the exact image executables
+        run: |
+          set -eu
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+          bash scripts/check-image-security.sh dockspire:ci "$(go env GOPATH)/bin/govulncheck"

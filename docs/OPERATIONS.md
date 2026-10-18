@@ -1,6 +1,6 @@
 # Dockspire operations manual
 
-For first installation and certificate verification, start with [INSTALL.md](INSTALL.md). Source builds and fictional demos are described in [the development branch guide](https://github.com/Mayo-Nas/dockspire/blob/development/docs/DEVELOPMENT.md). Examples below use generic paths and fictional stack names.
+For first installation and certificate verification, start with [INSTALL.md](INSTALL.md). Source builds and fictional demos are described in [the development guide](DEVELOPMENT.md). Examples below use generic paths and fictional stack names.
 
 ## Administrator access
 
