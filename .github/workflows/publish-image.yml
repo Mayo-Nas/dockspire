@@ -84,11 +84,32 @@ jobs:
           bash scripts/check-image-security.sh "$image" "$(go env GOPATH)/bin/govulncheck"
 
       - name: Publish the verified version
+        id: publish
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          repository_metadata="$(gh api "repos/$GITHUB_REPOSITORY")"
+          jq -e '.private == true' <<< "$repository_metadata" >/dev/null
+          owner_type="$(jq -er '.owner.type' <<< "$repository_metadata")"
+          case "$owner_type" in
+            User) owner_endpoint=users ;;
+            Organization) owner_endpoint=orgs ;;
+            *) echo 'Unsupported repository owner type.' >&2; exit 1 ;;
+          esac
+          package_name="${GITHUB_REPOSITORY#*/}"
+          package_name="${package_name,,}"
+          package_api="$owner_endpoint/$GITHUB_REPOSITORY_OWNER/packages/container/$package_name"
+          require_private_package() {
+            gh api "$package_api" | jq -e --arg name "$package_name" --arg repository "$GITHUB_REPOSITORY" '
+              .visibility == "private" and .package_type == "container" and .name == $name and
+              (.repository == null or .repository.full_name == $repository)
+            ' >/dev/null
+          }
+          require_private_package
+          versions="$(gh api --paginate --slurp "$package_api/versions?per_page=100")"
+          jq -e --arg version "$RELEASE_VERSION" 'all(.[][]; (.metadata.container.tags | index($version)) == null)' <<< "$versions" >/dev/null
           image="ghcr.io/${GITHUB_REPOSITORY,,}:$RELEASE_VERSION"
           # Use an ephemeral Docker config rather than leaving registry credentials behind.
           export DOCKER_CONFIG="$RUNNER_TEMP/dockspire-registry"
@@ -96,3 +117,24 @@ jobs:
           trap 'docker logout ghcr.io >/dev/null 2>&1 || true; rm -rf "$DOCKER_CONFIG"' EXIT
           printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           docker push "$image"
+          digest="$(docker buildx imagetools inspect "$image" --format '{{json .Manifest}}' | jq -er '.digest')"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          image_repository="${image%:*}"
+          docker image inspect "$image" --format '{{json .RepoDigests}}' | jq -e --arg reference "$image_repository@$digest" 'index($reference) != null' >/dev/null
+          for attempt in 1 2 3 4 5; do
+            require_private_package
+            versions="$(gh api --paginate --slurp "$package_api/versions?per_page=100")"
+            published_digest="$(jq -r --arg version "$RELEASE_VERSION" '[.[][] | select(.metadata.container.tags | index($version)) | .name] | if length == 0 then "" elif length == 1 then .[0] else error("Expected exactly one published version") end' <<< "$versions")"
+            if [[ -n "$published_digest" ]]; then
+              [[ "$published_digest" == "$digest" ]]
+              break
+            fi
+            if [[ "$attempt" == 5 ]]; then
+              echo 'Published version metadata is unavailable; verify the existing publication before retrying.' >&2
+              exit 1
+            fi
+            sleep 3
+          done
+          printf 'image=%s@%s\n' "$image_repository" "$digest" >> "$GITHUB_OUTPUT"
+          printf 'Published verified private image: `%s@%s`\n' "$image_repository" "$digest" >> "$GITHUB_STEP_SUMMARY"
+          printf 'DOCKSPIRE_RELEASE_IMAGE=%s@%s\n' "$image_repository" "$digest"
