@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dockspire · Container management</title>
+  <meta name="description" content="Dockspire — Dock. Deploy. Manage. Your container management workspace.">
+  <meta name="theme-color" content="#0B1F3B">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/brand/dockspire-icon-256.png">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+  <script src="/stacks.js" defer></script>
+  <script src="/monitoring.js" defer></script>
+  <script src="/system.js" defer></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="#dashboard" aria-label="Dockspire dashboard"><img class="brand-mark" src="/brand/dockspire-icon-64.png" srcset="/brand/dockspire-icon-128.png 2x" width="44" height="44" alt=""><span class="brand-copy"><span class="brand-wordmark">Dock<span>spire</span></span><small>DOCK. DEPLOY. MANAGE.</small></span></a>
+    <div class="nav-label">WORKSPACE</div>
+    <nav aria-label="Main navigation">
+      <a href="#dashboard" data-view="dashboard"><span aria-hidden="true">◫</span> Dashboard</a>
+      <a href="#stacks" data-view="stacks"><span aria-hidden="true">▤</span> Stacks <span class="nav-count" id="count-stacks">—</span></a>
+      <a href="#containers" data-view="containers"><span aria-hidden="true">▣</span> Containers <span class="nav-count" id="count-containers">—</span></a>
+      <a href="#images" data-view="images"><span aria-hidden="true">◇</span> Images</a>
+      <a href="#networks" data-view="networks"><span aria-hidden="true">⌘</span> Networks</a>
+      <a href="#volumes" data-view="volumes"><span aria-hidden="true">▱</span> Volumes</a>
+      <a href="#system" data-view="system"><span aria-hidden="true">⚙</span> Docker</a>
+    </nav>
+    <div class="sidebar-footer"><span class="connection-dot"></span> Docker workspace<small>Local access</small></div>
+  </aside>
+  <main>
+    <header class="topbar"><span class="breadcrumb">Workspace <span>/</span> <span id="crumb">Dashboard</span></span><div class="heading-actions"><span class="preview-label">EARLY PREVIEW</span><button id="sign-out" class="button">Sign out</button></div></header>
+    <div class="content">
+      <div class="heading-row"><div><p class="eyebrow">YOUR DOCKER WORKSPACE</p><h1 id="page-title">Dashboard</h1><p class="subtitle" id="page-description">A clear view of what’s running.</p></div><div class="heading-actions"><div id="stack-actions" hidden><button id="backup-library" class="button">Back up library</button> <button id="import-stack" class="button">Import stack</button> <button id="new-stack" class="button primary">Add stack</button></div><button id="refresh" class="button">↻ <span>Refresh</span></button></div></div>
+      <div id="notice" class="notice" role="status">Connecting to inventory…</div>
+      <div id="error" class="error" role="alert" hidden></div>
+      <section id="summary" class="summary" aria-label="Resource totals"></section>
+      <section id="system-panel" hidden aria-live="polite"></section>
+      <section class="workspace-grid">
+        <div class="panel inventory-panel"><div class="panel-header"><div><h2 id="table-title">Containers</h2><p id="table-description">Current workload inventory</p></div><label class="search"><span class="sr-only">Filter inventory</span><input id="search" type="search" placeholder="Filter inventory…" autocomplete="off"></label></div><div class="table-wrap" id="inventory" aria-live="polite"><p class="empty">Loading inventory…</p></div></div>
+        <aside id="host-panel" class="panel host-panel"><div class="panel-header"><h2>Environment</h2></div><div id="host-details" class="host-details"></div><div class="scope-note"><strong>Import, review, then manage.</strong><p>Importing a definition leaves its running containers unchanged. New stacks can be validated and deployed after review.</p></div></aside>
+      </section>
+      <footer class="page-footer"><span id="updated">Waiting for first snapshot</span><span>DOCK. DEPLOY. MANAGE.</span></footer>
+    </div>
+  </main>
+  <dialog id="detail"><div class="dialog-heading"><h2 id="detail-title">Details</h2><button id="close-detail" class="button" autofocus>Close</button></div><div id="detail-body"></div></dialog>
+  <dialog id="stack-dialog" class="stack-dialog"><div class="dialog-heading"><h2 id="stack-dialog-title">Stack</h2><button id="close-stack-dialog" class="button">Close</button></div><div id="stack-dialog-body"></div></dialog>
+  <dialog id="container-dialog" class="container-dialog"><div class="dialog-heading"><div><h2 id="container-title">Container</h2><p id="container-subtitle" class="muted"></p></div><button id="close-container" class="button">Close</button></div><div id="container-body"></div></dialog>
+</body>
+</html>

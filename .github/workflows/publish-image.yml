@@ -1,0 +1,87 @@
+name: Publish container image
+
+# Deliberate manual publication only; ordinary pushes/CI never publish an image.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing version tag to test and publish (for example v0.1.0)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-dockspire
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      GOTELEMETRY: 'off'
+      GOTOOLCHAIN: local
+      CGO_ENABLED: '0'
+    steps:
+      - name: Validate version
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+
+      - name: Check out version tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.version }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.2'
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Test the selected source
+        run: |
+          set -eu
+          go test ./...
+          go vet ./...
+          for test in tests/test-*.mjs; do node "$test"; done
+          sh tests/test-installation.sh
+          bash tests/test-installer.sh
+
+      - name: Build and verify the image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:$RELEASE_VERSION"
+          docker build --platform linux/amd64 --label "org.opencontainers.image.version=$RELEASE_VERSION" --label "org.opencontainers.image.revision=$(git rev-parse HEAD)" -t "$image" .
+          bash tests/test-container.sh "$image"
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+          bash scripts/check-image-security.sh "$image" "$(go env GOPATH)/bin/govulncheck"
+
+      - name: Publish the verified version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:$RELEASE_VERSION"
+          # Use an ephemeral Docker config rather than leaving registry credentials behind.
+          export DOCKER_CONFIG="$RUNNER_TEMP/dockspire-registry"
+          mkdir -m 700 -p "$DOCKER_CONFIG"
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true; rm -rf "$DOCKER_CONFIG"' EXIT
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$image"

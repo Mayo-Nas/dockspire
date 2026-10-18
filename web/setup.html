@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Administrator setup · Dockspire</title>
+  <meta name="theme-color" content="#0B1F3B">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/brand/dockspire-icon-256.png">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/setup.js" defer></script>
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <a class="brand" href="/setup" aria-label="Dockspire"><img class="brand-lockup" src="/brand/dockspire-horizontal-dark.png" width="692" height="223" alt="Dockspire — Dock. Deploy. Manage."></a>
+    <h1>Create administrator</h1>
+    <p class="subtitle">Before entering credentials, verify the certificate's SHA-256 fingerprint against your VM console or trusted SSH session.</p>
+    <p class="subtitle">Set up your Docker workspace. Complete setup within five minutes of starting Dockspire.</p>
+    <form id="setup-form">
+      <label class="form-field" for="setup-token">Setup token
+        <input id="setup-token" name="setup-token" type="password" autocomplete="off" required aria-describedby="token-help">
+      </label>
+      <p id="token-help" class="subtitle">Copy the one-time setup token from your Dockspire container logs.</p>
+      <label class="form-field" for="username">Username
+        <input id="username" name="username" value="admin" autocomplete="username" readonly>
+      </label>
+      <label class="form-field" for="password">Password
+        <input id="password" name="password" type="password" autocomplete="new-password" minlength="15" required autofocus aria-describedby="password-help">
+      </label>
+      <p id="password-help" class="subtitle">Use at least 15 characters.</p>
+      <label class="form-field" for="confirmation">Confirm password
+        <input id="confirmation" name="confirmation" type="password" autocomplete="new-password" minlength="15" required>
+      </label>
+      <p id="setup-error" class="error" role="alert" hidden></p>
+      <button id="create-admin" class="button primary" type="submit" disabled>Create administrator</button>
+    </form>
+  </main>
+</body>
+</html>

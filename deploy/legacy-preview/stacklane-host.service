@@ -1,0 +1,32 @@
+[Unit]
+Description=Dockspire Docker version and package-list helper (no package installation)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/local/lib/stacklane-host/stacklane --host-helper
+Restart=on-failure
+RestartSec=3
+RuntimeDirectory=stacklane-host
+RuntimeDirectoryMode=0750
+StateDirectory=stacklane-host
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+# APT must be able to drop to its _apt download user under NoNewPrivileges.
+AmbientCapabilities=CAP_SETUID CAP_SETGID
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+ReadOnlyPaths=/usr/local/lib/stacklane-host
+KillMode=control-group
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target

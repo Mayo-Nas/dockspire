@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · Dockspire</title>
+  <meta name="description" content="Sign in to your Dockspire container management workspace.">
+  <meta name="theme-color" content="#0B1F3B">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/brand/dockspire-icon-256.png">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/login.js" defer></script>
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <a class="brand" href="/login" aria-label="Dockspire"><img class="brand-lockup" src="/brand/dockspire-horizontal-dark.png" width="692" height="223" alt="Dockspire — Dock. Deploy. Manage."></a>
+    <h1>Sign in</h1>
+    <p class="subtitle">Manage your Docker workspace.</p>
+    <form id="login-form">
+      <label class="form-field" for="username">Username
+        <input id="username" name="username" value="admin" autocomplete="username" required maxlength="128">
+      </label>
+      <label class="form-field" for="password">Password
+        <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+      </label>
+      <p id="login-error" class="error" role="alert" hidden></p>
+      <button id="sign-in" class="button primary" type="submit">Sign in</button>
+    </form>
+  </main>
+</body>
+</html>
