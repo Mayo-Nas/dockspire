@@ -1,6 +1,6 @@
 # Dockspire
 
-`main` contains the application and files needed to build, install and operate it. Contributor tools, regression tests, CI and demo configuration are kept on the [development branch](https://github.com/Mayo-Nas/dockspire/tree/development).
+`main` contains the complete maintained source, tests, CI and release tooling. Installation uses a minimal runtime image; contributor files are not shipped in that image.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="web/brand/dockspire-horizontal-dark.png">
@@ -41,7 +41,9 @@ cmd/dockspire/       Executable entry point
 internal/app/       Backend implementation
 web/                Browser interface, branding and embedded asset bundle
 deploy/             Container installation and optional host-helper service
-scripts/            Installation checks and host maintenance
+scripts/            Installation checks, host maintenance and contributor tools
+tests/              Browser and installation regression tests
+.github/            CI, manual image publication and pull request template
 docs/               Installation, operations and asset notices
 licenses/           Third-party dependency notices
 ```
@@ -50,16 +52,12 @@ The backend remains one internal application package. Feature files stay togethe
 
 ## Contribute
 
-Use the [development branch](https://github.com/Mayo-Nas/dockspire/tree/development) for the full contributor setup, tests and release tools:
+Create a short-lived feature branch from `main`, open a pull request to `main`, and run the documented checks before merging. Tests, contributor tools and release workflows stay alongside the application source. The old `development` branch is historical and is not an active contribution target.
 
-```sh
-git switch development
-```
-
-See [development and checks](https://github.com/Mayo-Nas/dockspire/blob/development/docs/DEVELOPMENT.md). Native source builds require Go 1.27.2; the installation commands above build in Docker without host Go or Node. Detailed application workflows and access/backup behavior are in the [operations manual](docs/OPERATIONS.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md), [development and checks](docs/DEVELOPMENT.md), and [repository and release policy](docs/GITHUB.md). Native source builds require Go 1.27.2; Node 24 runs browser regression tests. Installation builds in Docker without host Go or Node. Detailed application workflows and access/backup behavior are in the [operations manual](docs/OPERATIONS.md).
 
 ## Project status
 
 The supported release target is Linux amd64 with Docker Engine and modern Compose. The application and installation workflow are covered by Go, UI and disposable-container tests. Other architectures have not been runtime-verified.
 
-The canonical repository is [Mayo-Nas/dockspire](https://github.com/Mayo-Nas/dockspire). [Publication guidance on development](https://github.com/Mayo-Nas/dockspire/blob/development/docs/GITHUB.md) covers source/privacy review and image releases. Dockspire's own source license remains undecided; files under `licenses/` cover YAML and bundled Docker Compose, and branding retains its supplied [asset notes](docs/branding/ASSET_LICENSE_NOTES.md).
+The canonical repository is [Mayo-Nas/dockspire](https://github.com/Mayo-Nas/dockspire). [Repository and publication guidance](docs/GITHUB.md) covers source/privacy review and image releases. Dockspire's own source license remains undecided; files under `licenses/` cover YAML and bundled Docker Compose, and branding retains its supplied [asset notes](docs/branding/ASSET_LICENSE_NOTES.md).

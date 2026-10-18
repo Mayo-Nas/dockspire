@@ -45,6 +45,7 @@ host-refresh-diagnostic.*
 
 # Local development assistants, editors, and disposable work.
 AGENTS.md
+!/AGENTS.md
 CLAUDE.md
 GEMINI.md
 .codex/
