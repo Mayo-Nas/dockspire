@@ -16,4 +16,4 @@ Place generated executables outside the checkout. Scan both final image executab
 
 Upstream license: Apache-2.0; see the notices in [licenses](../../licenses/compose-NOTICE) and the [license text](../../licenses/Apache-2.0.txt).
 
-The complete generated dependency notice inventory is [compose-third-party.txt](../../licenses/compose-third-party.txt), including Logrus and standard-library attribution. Regenerate and verify both target inventories with [the documented notice procedure](../../docs/DEVELOPMENT.md#dependency-attribution) when changing dependencies.
+The complete generated dependency notice inventory is [compose-third-party.txt](../../licenses/compose-third-party.txt), including Logrus and standard-library attribution. Regenerate and verify both target inventories with [the documented notice procedure on development](https://github.com/Mayo-Nas/dockspire/blob/development/docs/DEVELOPMENT.md#dependency-attribution) when changing dependencies.

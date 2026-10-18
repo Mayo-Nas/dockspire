@@ -1,5 +1,7 @@
 # Dockspire
 
+`main` contains the application and files needed to build, install and operate it. Contributor tools, regression tests, CI and demo configuration are kept on the [development branch](https://github.com/Mayo-Nas/dockspire/tree/development).
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="web/brand/dockspire-horizontal-dark.png">
   <img src="docs/branding/dockspire-horizontal-light.png" alt="Dockspire — Dock. Deploy. Manage." width="560">
@@ -36,39 +38,28 @@ Docker packages remain managed by the host. Dockspire does not install or upgrad
 
 ```text
 cmd/dockspire/       Executable entry point
-internal/app/       Backend implementation and Go regression tests
+internal/app/       Backend implementation
 web/                Browser interface, branding and embedded asset bundle
-deploy/             Container installation, demo and optional host-helper service
-scripts/            Installation checks, dependency notices and host maintenance
-tests/              JavaScript and installation regression tests
-docs/               Installation, development, operations and branding guides
+deploy/             Container installation and optional host-helper service
+scripts/            Installation checks and host maintenance
+docs/               Installation, operations and asset notices
 licenses/           Third-party dependency notices
-.github/            CI and pull-request template
 ```
 
 The backend remains one internal application package. Feature files stay together without exposing implementation types or introducing extra services.
 
-## Develop
+## Contribute
 
-Requires Go 1.27.2; Node 24 runs the browser-code regression tests. No frontend dependency installation or build is required.
+Use the [development branch](https://github.com/Mayo-Nas/dockspire/tree/development) for the full contributor setup, tests and release tools:
 
 ```sh
-go test ./...
-go vet ./...
-go build -o .local/bin/dockspire ./cmd/dockspire
-node tests/test-auth.mjs
-node tests/test-setup.mjs
-node tests/test-navigation.mjs
-node tests/test-stacks.mjs
-node tests/test-revisions.mjs
+git switch development
 ```
 
-See [development and checks](docs/DEVELOPMENT.md) for demo mode, source Docker builds and local workspace paths. Detailed application workflows and access/backup behavior are in the [operations manual](docs/OPERATIONS.md).
+See [development and checks](https://github.com/Mayo-Nas/dockspire/blob/development/docs/DEVELOPMENT.md). Native source builds require Go 1.27.2; the installation commands above build in Docker without host Go or Node. Detailed application workflows and access/backup behavior are in the [operations manual](docs/OPERATIONS.md).
 
 ## Project status
 
 The supported release target is Linux amd64 with Docker Engine and modern Compose. The application and installation workflow are covered by Go, UI and disposable-container tests. Other architectures have not been runtime-verified.
 
-The canonical repository is [Mayo-Nas/dockspire](https://github.com/Mayo-Nas/dockspire). [Publication guidance](docs/GITHUB.md) covers source/privacy review and image releases. Dockspire's own source license remains undecided; files under `licenses/` cover YAML and bundled Docker Compose, and branding retains its supplied [asset notes](docs/branding/ASSET_LICENSE_NOTES.md).
-
-Development checks and contributor information are in [the development guide](docs/DEVELOPMENT.md).
+The canonical repository is [Mayo-Nas/dockspire](https://github.com/Mayo-Nas/dockspire). [Publication guidance on development](https://github.com/Mayo-Nas/dockspire/blob/development/docs/GITHUB.md) covers source/privacy review and image releases. Dockspire's own source license remains undecided; files under `licenses/` cover YAML and bundled Docker Compose, and branding retains its supplied [asset notes](docs/branding/ASSET_LICENSE_NOTES.md).
