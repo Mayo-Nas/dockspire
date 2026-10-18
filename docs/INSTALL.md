@@ -1,6 +1,22 @@
 # Install Dockspire on a Linux VM
 
-Current source defaults to HTTP on 8787 with tokenless first-administrator setup. It needs Docker Engine and the modern Compose plugin, not host Go/Node. Only Linux amd64 is supported. These HTTP changes are not in published v0.1.0: use a source-built image with matching checkout configuration. Existing v0.1.0 installations keep their HTTPS 9443 configuration and data unchanged.
+v0.1.1 defaults to HTTP on 8787 with tokenless first-administrator setup. It needs Docker Engine and the modern Compose plugin, not host Go/Node. Only Linux amd64 is supported. Existing v0.1.0 installations keep their HTTPS 9443 configuration and data unchanged; read [upgrade and rollback](#upgrade-and-rollback) before changing an existing installation.
+
+## Install the published v0.1.1 image
+
+Use a fresh Linux amd64 host without an existing Dockspire installation or `dockspire_data` volume. The matching template fixes project `dockspire` and volume `dockspire_data`; another checkout does not isolate an existing installation. HTTP exposes passwords and sessions without encryption, and any reachable client can claim first administrator while setup is open. Restrict access to a trusted management network.
+
+The repository and GHCR image are private. Use an authenticated GitHub CLI account with repository access. Registry pulls require package access and a token with `read:packages`; run `docker login ghcr.io --username YOUR_GITHUB_USER` and enter that token at its password prompt. Keep tokens out of commands, Compose files and chat. See [GitHub registry authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
+
+```sh
+gh repo clone Mayo-Nas/dockspire -- --branch v0.1.1
+cd dockspire/deploy
+export DOCKSPIRE_IMAGE=ghcr.io/mayo-nas/dockspire:v0.1.1
+docker compose pull app
+docker compose up -d --no-deps app
+```
+
+Keep Compose commands in `deploy/`. Repeat the image export after reconnecting, or manually save `DOCKSPIRE_IMAGE=ghcr.io/mayo-nas/dockspire:v0.1.1` in a private `.env` beside `compose.yaml`; a shell export takes precedence. The [release notes](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.1.1) record the immutable digest, validation and limitations. To pin it, select the complete `ghcr.io/mayo-nas/dockspire@sha256:...` reference from those notes instead of the version tag. Do not overwrite an existing deployment's files or data. Continue with [administrator setup](#create-the-administrator) and optional HTTPS below. Publishing an image does not upgrade a running installation.
 
 ## Build and start the current source
 
@@ -77,7 +93,7 @@ Portainer file import is available without a direct source connection: choose **
 
 Use matching checkout files in deploy/. Its Portainer override supplies the HTTP command. If optional HTTPS is also enabled, merge the command lists with the TLS settings above; the last command override replaces earlier lists rather than appending.
 
-Dockspire can preview and save configuration copies from supported Portainer Docker Compose stacks on the same Docker host. Importing does not stop Portainer, adopt workloads, edit its source files, or deploy containers. Copies stay read-only until a separate [takeover review](OPERATIONS.md#portainer-takeover) is explicitly confirmed and completes. No Portainer API token, database access, or full Portainer data-volume mount is needed. Takeover is current-source functionality, not part of the published v0.1.0 image.
+Dockspire can preview and save configuration copies from supported Portainer Docker Compose stacks on the same Docker host. Importing does not stop Portainer, adopt workloads, edit its source files, or deploy containers. Copies stay read-only until a separate [takeover review](OPERATIONS.md#portainer-takeover) is explicitly confirmed and completes. No Portainer API token, database access, or full Portainer data-volume mount is needed. Takeover is included in v0.1.1; it is unavailable in the v0.1.0 image.
 
 Download `deploy/compose.portainer.yaml` from the same release/commit as the primary Compose file, saving it beside `compose.yaml` as `compose.portainer.yaml`. Enable it only when authorized to read those stack definitions, which can contain secrets even without associated environment files. In your private local `.env`, set:
 
