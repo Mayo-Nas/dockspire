@@ -18,7 +18,7 @@ The recommended installation uses a **versioned container image and Docker Compo
 3. Run `docker compose up -d`, then open `https://VM-IP:9443` (choose another host port if Portainer already uses 9443).
 4. Verify the certificate fingerprint through a trusted VM console/SSH session as described in the installation guide. Then copy the one-time setup token from `docker compose logs app`, create the administrator within five minutes, and sign in. Trusted custom certificates are also supported.
 
-**No source, release or container image has been published yet.** Registry installation becomes available after an explicitly approved push and image publication. See [Linux installation and upgrades](docs/INSTALL.md) for complete commands, private-registry access, certificates, persistent storage and rollback. [Offline archives](docs/INSTALL-ARCHIVE.md) remain an alternative.
+Source is available in [Mayo-Nas/dockspire](https://github.com/Mayo-Nas/dockspire). Registry installation requires an existing published image version; example tags in the documentation are placeholders. See [Linux installation and upgrades](docs/INSTALL.md) for complete commands, private-registry access, certificates, persistent storage and rollback, or [build the container from source](docs/DEVELOPMENT.md#container-build-and-checks).
 
 Docker packages remain managed by the host. Dockspire does not install or upgrade them automatically. The optional [Portainer import setup](docs/INSTALL.md#optional-portainer-configuration-import) enables previewing and saving read-only configuration copies. Portainer continues managing those workloads; Dockspire does not take them over.
 
@@ -28,8 +28,8 @@ Docker packages remain managed by the host. Dockspire does not install or upgrad
 cmd/dockspire/       Executable entry point
 internal/app/       Backend implementation and Go regression tests
 web/                Browser interface, branding and embedded asset bundle
-deploy/             Development configuration and compatible release templates
-scripts/            Packaging, installation and legacy administration tools
+deploy/             Container installation, demo and optional host-helper service
+scripts/            Installation checks, dependency notices and host maintenance
 tests/              JavaScript and installation regression tests
 docs/               Installation, development, operations and branding guides
 licenses/           Third-party dependency notices
@@ -53,7 +53,7 @@ node tests/test-stacks.mjs
 node tests/test-revisions.mjs
 ```
 
-See [development and packaging](docs/DEVELOPMENT.md) for demo mode, source Docker builds and local workspace paths. Detailed application workflows and access/backup behavior are in the [operations manual](docs/OPERATIONS.md).
+See [development and checks](docs/DEVELOPMENT.md) for demo mode, source Docker builds and local workspace paths. Detailed application workflows and access/backup behavior are in the [operations manual](docs/OPERATIONS.md).
 
 ## Project status
 
@@ -61,4 +61,4 @@ The supported release target is Linux amd64 with Docker Engine and modern Compos
 
 The canonical repository is [Mayo-Nas/dockspire](https://github.com/Mayo-Nas/dockspire). [Publication guidance](docs/GITHUB.md) covers source/privacy review and image releases. Dockspire's own source license remains undecided; files under `licenses/` cover YAML and bundled Docker Compose, and branding retains its supplied [asset notes](docs/branding/ASSET_LICENSE_NOTES.md).
 
-Development checks, packaging, and contributor information are in [the development guide](docs/DEVELOPMENT.md).
+Development checks and contributor information are in [the development guide](docs/DEVELOPMENT.md).

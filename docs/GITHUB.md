@@ -20,7 +20,7 @@ Do not use `--all` or `--mirror` for a reviewed single-branch first push. Confir
 
 ## Continuous integration
 
-CI checks Go on Linux/Windows, browser JavaScript, installer fixtures and a disposable Linux container installation. It has read-only repository permissions and pinned action commits. Checkout does not persist credentials. The container job scans the exact two shipped Go executables using pinned govulncheck before accepting the image. Normal source pushes and pull requests do not publish images or deploy applications.
+CI checks Go on Linux/Windows, browser JavaScript, Docker/Compose prerequisite fixtures and a disposable Linux container installation. It has read-only repository permissions and pinned action commits. Checkout does not persist credentials. The container job scans the exact two shipped Go executables using pinned govulncheck before accepting the image. Normal source pushes and pull requests do not publish images or deploy applications.
 
 ## Image release
 

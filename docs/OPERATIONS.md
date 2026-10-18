@@ -92,6 +92,9 @@ A restored library needs its own administrator/TLS setup. Inspect configuration 
 
 ## Host packages and compatibility
 
-Docker Engine and the Compose plugin used to launch the application are host-managed. Dockspire does not install or upgrade host packages. Its runtime image bundles a separately pinned Compose executable for stack operations. The optional legacy host-helper scripts are not connected by the default installation.
+Docker Engine and the Compose plugin used to launch the application are host-managed. Dockspire does not install or upgrade host packages. Its runtime image bundles a separately pinned Compose executable for stack operations. The optional host helper is not connected by the default installation; its runtime support and maintenance scripts remain available for existing installations.
+
+The unchanged service template is now `deploy/host-helper/stacklane-host.service`. Existing helper maintainers can stage that file, a reviewed Linux `stacklane` executable built from `cmd/dockspire`, and the needed `scripts/*host*.sh` maintenance scripts together in a private directory. The scripts expect these files beside them; review each script before explicitly running it with root privileges on the intended Linux host. Keep existing helper service/socket paths and container overrides. The retired preview Compose override used old HTTP/host-Compose settings and must not be applied to the current container template.
+For `restrict-host-helper.sh`, stage a `SHA256SUMS` file from the verified build that includes the `stacklane` executable; the replacement script verifies it before installation.
 
 Existing formats and native executable names retain `stacklane`, `STACKLANE_*`, the `stacklane-library` archive kind and related compatibility identifiers. The product/browser name is Dockspire. Preserve an installation's project name and data mount when upgrading; see [INSTALL.md](INSTALL.md) for backup and rollback.

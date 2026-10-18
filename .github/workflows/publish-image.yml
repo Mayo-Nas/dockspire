@@ -60,7 +60,6 @@ jobs:
           go vet ./...
           for test in tests/test-*.mjs; do node "$test"; done
           sh tests/test-installation.sh
-          bash tests/test-installer.sh
 
       - name: Build and verify the image
         shell: bash

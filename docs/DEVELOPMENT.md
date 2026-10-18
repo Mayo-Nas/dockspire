@@ -1,4 +1,4 @@
-# Development and release packaging
+# Development and checks
 
 Run from the repository root. Go 1.27.2 builds `cmd/dockspire`; backend code/tests are in `internal/app`. `web` embeds runtime HTML/CSS/JavaScript and assets, excluding Go source. Node 24 runs UI regression tests; no npm installation/build is required.
 
@@ -14,7 +14,6 @@ node tests/test-navigation.mjs
 node tests/test-stacks.mjs
 node tests/test-revisions.mjs
 sh tests/test-installation.sh
-bash tests/test-installer.sh
 ```
 
 Use fictional data in a dedicated ignored directory:
@@ -38,19 +37,16 @@ bash scripts/check-image-security.sh dockspire:local
 
 The image builds the application and patched upstream Compose with digest-pinned Go builders. [The separate Compose manifest](../deploy/compose-runtime/README.md) records its dependency override and build procedure. The container tests create/remove their own container/volume on a random loopback port, checking real Docker/Compose, HTTPS, setup, login, certificate fingerprint and restart persistence. They never deploy a stack. Check host disk capacity before building; use a dedicated development host.
 
-Production configuration is `deploy/compose.yaml`. The root Compose file and `deploy/legacy-preview/` retain legacy source/archive conventions. `deploy/development/compose.demo.yaml` provides a source-built fictional-inventory preview with explicit offline initialization. Do not share a library/port between test instances or point tests at a real installation.
+Production configuration is `deploy/compose.yaml`. To start a fresh installation from the local image on a Linux development host:
 
-## Offline release archives
-
-From a clean committed checkout with Go/Git/tar on PATH:
-
-```powershell
-./scripts/package-release.ps1 -Version v0.1.0
+```sh
+DOCKSPIRE_IMAGE=dockspire:local docker compose -f deploy/compose.yaml up -d --pull never
+DOCKSPIRE_IMAGE=dockspire:local docker compose -f deploy/compose.yaml logs app
 ```
 
-Outputs default to ignored `.local/artifacts/`. `-Workspace` optionally selects an external output/cache root. Versioned archives contain a Linux amd64 executable, compatible runtime templates, installers, notices, checksums and source metadata. These legacy/offline bundles retain terminal initialization and loopback defaults; they do not bundle the new container's Compose executable. See [archive installation](INSTALL-ARCHIVE.md). `scripts/package-preview.ps1` remains a compatible entry point for unversioned preview bundles.
+Follow [installation](INSTALL.md) for certificate verification and browser setup. This uses the same `dockspire` project and `dockspire_data` volume as the release template; use a dedicated development host, never a host with an existing Dockspire installation. It connects to the host Docker socket. For fictional inventory without Docker access, use the native demo above. `deploy/development/compose.demo.yaml` is also retained for existing demo workspaces and requires offline administrator initialization.
 
-Packaging does not publish a tag, release or image. Publication requires explicit authorization; see [GITHUB.md](GITHUB.md). Review both source history and final artifacts before upload.
+The old root Compose file, preview templates, archive packagers and archive installers have been retired. Existing deployments must retain their own configuration and data; see [upgrade and rollback](INSTALL.md#upgrade-and-rollback). Building locally does not publish a tag, release or image. Publication requires explicit authorization; see [GITHUB.md](GITHUB.md).
 
 ## Private/generated files
 
@@ -60,11 +56,11 @@ Use ignored `.local/` or an external workspace for caches, binaries, fixtures, r
 
 Dockspire is one Go process serving embedded browser assets and a Docker/Compose API, with no frontend build step. The saved library stores complete configuration revisions. Durable deployment attempts distinguish saved, attempted, and observed state; interrupted work requires inspection before recovery. Portable archives exclude administrator credentials and TLS keys. Back up workload volumes and bind-mounted data separately.
 
-Primary installations use `deploy/compose.yaml`, a versioned Linux amd64 image, a persistent data volume, direct HTTPS, and browser administrator setup. Root Compose and `deploy/legacy-preview/` retain older deployment identifiers; changing project names or storage paths requires an explicit migration. The Docker socket grants host administration. Use a trusted management network or a verified SSH tunnel. Multi-host management and external-manager takeover are not implemented.
+Primary installations use `deploy/compose.yaml`, a versioned Linux amd64 image, a persistent data volume, direct HTTPS, and browser administrator setup. Changing existing project names or storage paths requires an explicit migration. The Docker socket grants host administration. Use a trusted management network or a verified SSH tunnel. Multi-host management and external-manager takeover are not implemented.
 
 ## Dependency attribution
 
-`licenses/app-third-party.txt` and `licenses/compose-third-party.txt` retain a conservative superset of upstream licenses, copyright, patent and NOTICE files for the modules imported by each Linux amd64 target, plus the pinned Go standard library and bundled source notices. The container copies the entire `licenses/` directory; offline archives include the application notices because they do not bundle Compose.
+`licenses/app-third-party.txt` and `licenses/compose-third-party.txt` retain a conservative superset of upstream licenses, copyright, patent and NOTICE files for the modules imported by each Linux amd64 target, plus the pinned Go standard library and bundled source notices. The container copies the entire `licenses/` directory.
 
 After dependency or toolchain changes, use PowerShell 7 with the pinned Go toolchain and its checksum-verified public module cache:
 

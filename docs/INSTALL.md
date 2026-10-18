@@ -2,7 +2,7 @@
 
 Dockspire runs as one container with a persistent Docker volume, a browser-based first administrator setup, and direct HTTPS. Docker Engine and the modern Compose plugin must already be installed; use [Docker's distribution-specific instructions](https://docs.docker.com/engine/install/). Go, Node, a source checkout, a reverse proxy and host Compose binary mounts are unnecessary. The image bundles its own versioned Compose executable; host package updates remain your responsibility.
 
-**Publication is pending.** No installable release has been published yet. The version below is an example for a future release. Only Linux amd64 is currently supported for publication.
+The source repository is available. Registry installation requires a published image version; the version below is only an example, so verify the selected tag exists before using it. You can also [build the same container from source](DEVELOPMENT.md#container-build-and-checks). Only Linux amd64 is currently supported for publication.
 
 ## Start the container
 
@@ -135,4 +135,4 @@ docker compose ps
 
 Sign in again and check inventory, saved stacks and installation status. Preserve the Compose project, volume name and mount. Upgrading the manager does not require restarting managed workloads. Rollback selects the retained previous image and runs `docker compose up -d --no-deps --pull never app`; follow the release's data-restore instructions if it changes the storage format. This change does not migrate the library format.
 
-Legacy `stacklane-preview` installations use different project/data/access settings. Updating one needs a reviewed deployment preserving its current data mount; do not start this template against an empty volume and assume the old library was migrated. [Offline archives and legacy preview installation](INSTALL-ARCHIVE.md) remain supported as a separate path.
+Legacy preview and offline archive distribution have been retired from this source tree. Existing `stacklane-preview` installations use different project/data/access settings: retain their deployed Compose files and data mounts. This cleanup does not migrate or rename installations. Updating one needs a reviewed deployment preserving its existing project, data, ports and administrator/TLS state; do not start the current template against an empty volume and assume the old library was migrated. Historical templates remain in Git history.

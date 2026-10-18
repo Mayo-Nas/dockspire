@@ -80,7 +80,6 @@ jobs:
             bash -n "$script"
           done
           sh tests/test-installation.sh
-          bash tests/test-installer.sh
 
   container:
     name: Check Linux container installation
