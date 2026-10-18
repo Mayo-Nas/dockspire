@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -64,6 +65,10 @@ func (l *stackLibrary) contentFingerprint(record StackRecord) (string, error) {
 	return filesFingerprint(files), nil
 }
 func (l *stackLibrary) writeRecord(record StackRecord) error {
+	raw, marshalErr := json.MarshalIndent(record, "", "  ")
+	if marshalErr != nil || len(raw) > maxDefinition {
+		return errors.New("Stack metadata exceeds the 512 KiB storage limit; no record was written")
+	}
 	dir, err := l.directory(record.Name)
 	if err != nil {
 		return err
@@ -155,8 +160,8 @@ func (l *stackLibrary) edit(ctx context.Context, name string, input editInput, s
 	if err != nil {
 		return record, err
 	}
-	if record.Origin != "new" {
-		return record, errors.New("Portainer stacks remain view-only; migration is disabled")
+	if !record.managed() {
+		return record, errors.New("Imported copies remain read-only until an explicitly confirmed takeover completes")
 	}
 	if l.isBusy(name) {
 		return record, errors.New("Wait for the active operation before editing this stack")

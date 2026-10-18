@@ -78,6 +78,16 @@ func fixtureCSRF(t *testing.T, handler http.Handler, origin string, cookie *http
 	return session.CSRFToken
 }
 
+func TestSessionReportsBuildVersion(t *testing.T) {
+	a, handler := authFixture(t, "")
+	a.credential = adminCredential{Version: 2, Mode: "passwordless"}
+	w := authRequest(handler, "GET", "http://localhost/api/session", "", "", nil, "")
+	var response struct{ Version string }
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &response) != nil || response.Version != Version || response.Version == "" {
+		t.Fatal("session did not report embedded build version")
+	}
+}
+
 func TestAuthenticationProtectsApplication(t *testing.T) {
 	_, handler := authFixture(t, "")
 	for _, path := range []string{"/api/session", "/api/inventory", "/api/stacks", "/api/stacks/example", "/api/containers/fixture/logs", "/api/system/installation", "/api/unknown"} {
@@ -208,7 +218,7 @@ func TestLoginOriginHostProxyAndMediaChecks(t *testing.T) {
 	if w := authRequest(handler, "GET", "http://127.0.0.1:8787/api/session", "", "", nil, ""); w.Code != 403 {
 		t.Fatal("alternate origin exposed the application")
 	}
-	for _, value := range []string{"http://192.168.1.10", "https://user:password@example.test", "https://example.test/path", "https://example.test?query", "https://example.test#fragment", "//example.test", "https://"} {
+	for _, value := range []string{"ftp://192.168.1.10", "https://user:password@example.test", "https://example.test/path", "https://example.test?query", "https://example.test#fragment", "//example.test", "https://", "http://::1", "http://[example.test]", "http://example.test:", "http://example.test:65536"} {
 		if _, err := newAdminAccess(fixtureCredential(), value); err == nil {
 			t.Fatal("unsafe external origin accepted", value)
 		}
@@ -216,6 +226,71 @@ func TestLoginOriginHostProxyAndMediaChecks(t *testing.T) {
 	_, local := authFixture(t, "")
 	if w := authRequest(local, "GET", "http://192.168.1.10/api/health", "", "", nil, ""); w.Code != 403 {
 		t.Fatal("default accepts LAN Host")
+	}
+}
+
+func TestExplicitHTTPLANHostsAndOrigins(t *testing.T) {
+	a, handler := authFixture(t, "")
+	a.allowHTTP = true
+	for _, host := range []string{"localhost:8787", "127.0.0.1", "192.0.2.10:8787", "[2001:db8::1]:8787"} {
+		r := httptest.NewRequest("GET", "http://localhost/api/health", nil)
+		r.Host = host
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		if w.Code != 200 {
+			t.Fatalf("HTTP IP/loopback Host rejected: %s (%d)", host, w.Code)
+		}
+	}
+	for _, host := range []string{"attacker.example.test:8787", "localhost.attacker.test", "user@192.0.2.10", "192.0.2.10/path", "192.0.2.10?x", "192.0.2.10#x", "192.0.2.10:", "192.0.2.10:0", "192.0.2.10:65536", "::1", "[example.test]", ""} {
+		r := httptest.NewRequest("GET", "http://localhost/api/health", nil)
+		r.Host = host
+		r.Header.Set("X-Forwarded-Host", "192.0.2.10:8787")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		if w.Code != 403 {
+			t.Fatalf("untrusted HTTP Host accepted: %s (%d)", host, w.Code)
+		}
+	}
+	origin := "http://192.0.2.10:8787"
+	body := `{"username":"admin","password":"` + fixtureAdminPassword + `"}`
+	for _, other := range []string{"", "https://192.0.2.10:8787", "http://192.0.2.10:8788", "http://attacker.example.test:8787"} {
+		if w := authRequest(handler, "POST", origin+"/api/auth/login", other, body, nil, ""); w.Code != 403 {
+			t.Fatal("HTTP login accepted wrong/missing origin", other, w.Code)
+		}
+	}
+	cookie := fixtureLogin(t, handler, origin)
+	if cookie.Secure || cookie.Name != "stacklane_session" {
+		t.Fatal("HTTP cookie unusable")
+	}
+	_, pinned := authFixture(t, "http://stacks.example.test:8787")
+	cookie = fixtureLogin(t, pinned, "http://stacks.example.test:8787")
+	if cookie.Secure {
+		t.Fatal("pinned HTTP origin received Secure cookie")
+	}
+	if w := authRequest(pinned, "GET", "http://stacks.example.test/api/health", "", "", nil, ""); w.Code != 403 {
+		t.Fatal("pinned HTTP origin accepted another port", w.Code)
+	}
+}
+
+func TestExternalOriginDefaultPorts(t *testing.T) {
+	for _, test := range []struct {
+		configured, expected string
+		secure               bool
+	}{
+		{"http://stacks.example.test:80", "http://stacks.example.test", false},
+		{"https://stacks.example.test:443", "https://stacks.example.test", true},
+		{"http://[2001:db8::1]:80", "http://[2001:db8::1]", false},
+		{"https://[2001:db8::1]:443", "https://[2001:db8::1]", true},
+	} {
+		a, handler := authFixture(t, test.configured)
+		if a.origin != test.expected {
+			t.Fatal("origin not canonical", a.origin)
+		}
+		body := `{"username":"admin","password":"` + fixtureAdminPassword + `"}`
+		w := authRequest(handler, "POST", test.configured+"/api/auth/login", test.expected, body, nil, "")
+		if w.Code != 200 || len(w.Result().Cookies()) != 1 || w.Result().Cookies()[0].Secure != test.secure {
+			t.Fatal("browser default-port origin/cookie failed", test.configured, w.Code)
+		}
 	}
 }
 
@@ -246,8 +321,8 @@ func TestLoginThrottlingAndBoundedWork(t *testing.T) {
 
 func TestAdminCredentialLifecycleAndArchiveExclusion(t *testing.T) {
 	root := t.TempDir()
-	if err := setAdminPassword(root, strings.NewReader("too short"), false); err == nil {
-		t.Fatal("weak password accepted")
+	if err := setAdminPassword(root, strings.NewReader(""), false); err == nil {
+		t.Fatal("empty offline input enabled passwordless access")
 	}
 	if err := setAdminPassword(root, strings.NewReader(fixtureAdminPassword+"\r\n"), false); err != nil {
 		t.Fatal(err)
@@ -300,7 +375,7 @@ func TestAdminCredentialLifecycleAndArchiveExclusion(t *testing.T) {
 
 func TestAdminRejectsMalformedStorageAndRequests(t *testing.T) {
 	root := t.TempDir()
-	for _, data := range []string{`{}`, `{"version":1,"salt":"AA==","hash":"AA=="}`, `{"version":999}`, strings.Repeat("x", 4097)} {
+	for _, data := range []string{`{}`, `{"version":1,"salt":"AA==","hash":"AA=="}`, `{"version":999}`, `{"version":2}`, `{"version":2,"mode":"password"}`, `{"version":2,"mode":"passwordless","salt":"AA=="}`, `{"version":1,"mode":"passwordless"}`, strings.Repeat("x", 4097)} {
 		if err := os.WriteFile(filepath.Join(root, "admin.json"), []byte(data), 0600); err != nil {
 			t.Fatal(err)
 		}
@@ -308,7 +383,7 @@ func TestAdminRejectsMalformedStorageAndRequests(t *testing.T) {
 			t.Fatal("invalid admin file accepted")
 		}
 	}
-	for _, body := range []string{`{} {}`, `{"unknown":"field"}`, `{"username":"admin","password":"` + strings.Repeat("x", 1025) + `"}`, strings.Repeat(" ", 8193)} {
+	for _, body := range []string{`{} {}`, `{"unknown":"field"}`, `{"username":"admin","password":"` + strings.Repeat("x", authRequestLimit) + `"}`, strings.Repeat(" ", authRequestLimit+1)} {
 		_, handler := authFixture(t, "")
 		if w := authRequest(handler, "POST", "http://localhost/api/auth/login", "http://localhost", body, nil, ""); w.Code != 400 {
 			t.Fatal("malformed login accepted", w.Code)
@@ -343,6 +418,9 @@ func TestAdminCLI(t *testing.T) {
 		{[]string{"--init-admin"}, false},
 		{[]string{"--reset-admin"}, true},
 		{[]string{"--init-admin", "--reset-admin"}, false},
+		{[]string{"--allow-http", "--https"}, false},
+		{[]string{"--https", "--external-url", "http://stacks.example.test"}, false},
+		{[]string{"--allow-http", "--external-url", "https://stacks.example.test"}, false},
 	} {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		cmd := exec.CommandContext(ctx, binary, append([]string{"-test.run=^TestAdminCLI$", "--", "--data-dir", root}, command.args...)...)

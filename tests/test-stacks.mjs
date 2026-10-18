@@ -12,6 +12,7 @@ class Element {
   replaceChildren(...children) { this.children = children; }
   addEventListener(name, callback) { this.events[name] = callback; }
   setAttribute() {}
+  focus() {}
   scrollIntoView() {}
   showModal() { this.open = true; }
   close() { this.open = false; this.events.close?.(); }
@@ -36,6 +37,7 @@ let jobImages;
 let pendingPage;
 let pendingReview;
 let pendingImport, importedCopy = false;
+let takeoverStatus = '', takenOver = false;
 const importRequests = [];
 let emptyFirstPage = false;
 let comparison = { status: 'available', changes: [
@@ -96,12 +98,12 @@ const context = vm.createContext({
         : { jobs: emptyFirstPage ? [] : Array.from({ length: 10 }, (_, index) => job(index)), warnings: ['History fixture warning'], nextCursor: 'fixture-cursor' };
     }
     if (url.pathname.endsWith('/review') && pendingReview) return new Promise(resolve => { pendingReview.resolve = resolve; });
-    if (url.pathname.endsWith('/review')) return { name: 'example', kind: recoveryRequired ? 'recover' : 'update', services: record.services, targets: ['example-web-1'], id: 'review-fixture', comparison };
+    if (url.pathname.endsWith('/review')) return { name: 'example', kind: input?.action === 'takeover' ? 'takeover' : recoveryRequired ? 'recover' : 'update', services: record.services, targets: ['example-web-1'], id: 'review-fixture', comparison };
     if (url.pathname.endsWith('/operations') && method === 'POST') {
       submitted = input;
-      return { name: 'example', kind: 'recover', status: 'succeeded', stage: 'complete', message: 'Fixture recovery succeeded', images: jobImages };
+      return { name: 'example', kind: input.portainerWritersDisabled ? 'takeover' : 'recover', status: 'succeeded', stage: 'complete', message: 'Fixture recovery succeeded', images: input.portainerWritersDisabled ? undefined : jobImages };
     }
-    return { ...record, origin: importedCopy ? 'portainer' : 'new', recoveryRequired, deployedAt: recoveryRequired ? '' : '2026-10-16T12:00:00Z' };
+    return { ...record, origin: importedCopy ? 'portainer' : 'new', managed: takenOver, takeoverStatus, recoveryRequired, deployedAt: recoveryRequired ? '' : '2026-10-16T12:00:00Z' };
   },
 });
 vm.runInContext(await fs.readFile(new URL('../web/stacks.js', import.meta.url), 'utf8'), context, { filename: 'stacks.js' });
@@ -251,10 +253,17 @@ console.log('Stack history, recovery, comparison, private archive, and observed-
 
 // Portainer source access is optional; opening disabled setup must read nothing.
 get('import-stack').events.click();
+assert(texts(body).includes('Compose file upload available'));
 await buttons().find(button => button.textContent === 'Choose Portainer').events.click();
 assert(texts(body).some(text => text.includes('compose.portainer.yaml')));
 assert(!buttons().some(button => button.textContent === 'Preview import'));
 assert.equal(importRequests.length, 0);
+await buttons().find(button => button.textContent === 'Load exported Compose file').events.click();
+assert.equal(get('stack-dialog-title').textContent, 'Import from Portainer');
+assert(texts(body).some(text => text.includes('Choose an unused stack name')));
+assert(texts(body).some(text => text.includes('does not adopt an existing stack')));
+assert.equal(body.querySelectorAll('textarea')[0].value, '');
+assert.equal(importRequests.length, 0, 'Manual file import must not read direct source files');
 context.session.importEnabled = true;
 get('import-stack').events.click();
 await buttons().find(button => button.textContent === 'Choose Portainer').events.click();
@@ -289,6 +298,28 @@ assert(texts(body).some(text => text.includes('files will be copied, when presen
 await buttons().find(button => button.textContent === 'Import definition · leave containers running').events.click();
 assert.equal(importedCopy, true);
 assert.deepEqual(JSON.parse(JSON.stringify(importRequests.at(-1))), { path: '/api/stacks/example/import', method: 'POST', input: { fingerprint: 'fixture-import-fingerprint' } });
-assert(texts(body).some(text => text.includes('This copy is read-only')));
+assert(texts(body).some(text => text.includes('importing alone never changes containers')));
 assert(!buttons().some(button => /Edit configuration|Review stack|Start stack|Stop stack|Restart stack/.test(button.textContent)));
+await buttons().find(button => button.textContent === 'Review takeover').events.click();
+assert(texts(body).some(text => text.includes('Do not delete the Portainer stack')));
+const takeoverSubmit = buttons().find(button => button.textContent === 'Take over and redeploy');
+const [writers, project] = body.querySelectorAll('input');
+assert.equal(takeoverSubmit.disabled, true);
+project.value = 'example'; project.events.input(); assert.equal(takeoverSubmit.disabled, true);
+writers.checked = true; writers.events.change(); assert.equal(takeoverSubmit.disabled, false);
+project.value = 'wrong'; project.events.input(); assert.equal(takeoverSubmit.disabled, true);
+project.value = 'example'; project.events.input(); await takeoverSubmit.events.click();
+assert.deepEqual(JSON.parse(JSON.stringify(submitted)), { planId: 'review-fixture', confirmation: 'example', portainerWritersDisabled: true });
+assert(!texts(body).includes('Download images')); assert(texts(body).some(text => text.includes('no images were downloaded')));
+takeoverStatus = 'pending'; await context.window.stackUI.open({ name: 'example', definition: 'Saved' });
+assert(buttons().some(button => button.textContent === 'Review takeover recovery'));
+assert(!buttons().some(button => button.textContent === 'Edit configuration'));
+takeoverStatus = 'managed'; takenOver = true; await context.window.stackUI.open({ name: 'example', definition: 'Saved' });
+assert(buttons().some(button => button.textContent === 'Edit configuration'));
+assert(buttons().some(button => button.textContent === 'Review stack update'));
+context.snapshot.stacks = [{ name: 'example', definition: 'Saved', origin: 'portainer', managed: true }];
+let updateAction, lifecycleAction;
+context.window.monitorUI.open = (_item, update, _initial, lifecycle) => { updateAction = update; lifecycleAction = lifecycle; };
+await context.window.stackUI.container({ id: 'fixture-container', stack: 'example', name: 'example-web-1', service: 'web' });
+assert.equal(typeof updateAction, 'function'); assert.equal(typeof lifecycleAction, 'function');
 console.log('Optional Portainer import setup, preview, copy, stale response, and read-only UI checks passed');

@@ -4,7 +4,8 @@ window.stackUI = (() => {
   const dialog = $('stack-dialog'), body = $('stack-dialog-body');
   const example = 'services:\n  web:\n    image: nginx:alpine\n    ports:\n      - "127.0.0.1:8080:80"\n    restart: unless-stopped\n';
   const lifecycle = kind => ['start', 'stop', 'restart'].includes(kind);
-  const verb = kind => ({ deploy: 'Deploy', recover: 'Recover', update: 'Update', 'service-update': 'Update service', start: 'Start', stop: 'Stop', restart: 'Restart' }[kind] || 'Operation');
+  const verb = kind => ({ deploy: 'Deploy', recover: 'Recover', takeover: 'Take over', update: 'Update', 'service-update': 'Update service', start: 'Start', stop: 'Stop', restart: 'Restart' }[kind] || 'Operation');
+  const managed = record => record.origin === 'new' || record.managed === true;
   let generation = 0;
   let archiveController;
   function cancelArchive() { archiveController?.abort(); archiveController = undefined; }
@@ -141,7 +142,9 @@ window.stackUI = (() => {
     body.append(node('p', 'This operation continues if you close this window. Reopen it from the stack’s operation history.', 'muted'));
     if (initial.targets?.length) body.append(node('p', `Targeted containers: ${initial.targets.join(', ')}`, 'muted'));
     const steps = node('ol', undefined, 'job-steps');
-    const stages = lifecycle(initial.kind)
+    const stages = initial.kind === 'takeover'
+      ? [['queued', 'Queued'], ['validating', 'Recheck source and resource identities'], ['applying', 'Recreate with existing images'], ['verifying', 'Verify ownership and preserved resources'], ['recording', 'Save management state']]
+      : lifecycle(initial.kind)
       ? [['queued', 'Queued'], ['validating', 'Recheck ownership and scope'], ['applying', `${verb(initial.kind)} reviewed containers`], ['verifying', 'Verify container state'], ['recording', 'Save result']]
       : [['queued', 'Queued'], ['validating', 'Validate configuration'], ['pulling', 'Download images'], ['applying', 'Apply changes and check health'], ['recording', 'Save result']];
     stages.forEach(([, label]) => steps.append(node('li', label))); body.append(steps);
@@ -167,7 +170,8 @@ window.stackUI = (() => {
           table.append(row);
         });
         wrap.append(table); images.append(wrap);
-      } else if (!lifecycle(job.kind) && job.status !== 'running') images.append(node('p', 'Image IDs were not recorded for this operation.', 'muted'));
+      } else if (job.kind === 'takeover' && job.status === 'succeeded') images.append(node('p', 'Existing image identities were verified; no images were downloaded.', 'muted'));
+      else if (job.kind !== 'takeover' && !lifecycle(job.kind) && job.status !== 'running') images.append(node('p', 'Image IDs were not recorded for this operation.', 'muted'));
       if (job.status !== 'running') { actions.replaceChildren(button('View stack', () => operation(() => showSaved(job.name)), true)); await refresh(); return; }
       setTimeout(async () => {
         if (current !== generation || !dialog.open) return;
@@ -246,7 +250,7 @@ window.stackUI = (() => {
       const compose = node('textarea', undefined, 'compose-editor'); compose.value = preview.compose; compose.readOnly = true; compose.spellcheck = false;
       body.append(field('Historical Compose · environment values hidden', compose));
       body.append(node('p', 'Restoring selects these exact Compose and environment files as the saved draft. It replaces any unapplied saved edits. Running containers, applied state, and workload data stay unchanged. Review a deployment or update separately to apply this draft.', 'notice'));
-      if (!preview.canRestore) { body.append(node('p', 'Restoring is available only for an idle Dockspire-created stack.', 'muted')); return; }
+      if (!preview.canRestore) { body.append(node('p', 'Restoring is available only for an idle Dockspire-managed stack.', 'muted')); return; }
       const confirmation = node('input'); confirmation.placeholder = name;
       const restore = button('Restore as draft', () => operation(async () => {
         await api(`${path}/restore`, 'POST', { recordVersion: preview.recordVersion, confirmation: confirmation.value });
@@ -287,6 +291,7 @@ window.stackUI = (() => {
     const plan = await api(`/api/stacks/${encodeURIComponent(name)}/review`, 'POST', { containerId, action });
     if (current !== generation || !dialog.open) return;
     open(`${verb(plan.kind)} ${plan.confirmation || name} · review`);
+    if (plan.kind === 'takeover') { takeoverReview(plan); return; }
     if (lifecycle(plan.kind)) { lifecycleReview(plan); return; }
     const services = node('ul', undefined, 'service-list'); plan.services.forEach(item => services.append(node('li', `${item.name} — ${item.image}`))); body.append(services);
     if (plan.targets.length) body.append(node('p', `Current containers: ${plan.targets.join(', ')}`, 'muted'));
@@ -304,6 +309,24 @@ window.stackUI = (() => {
       if (current !== generation || !dialog.open) return;
       await watchJob(job);
     }), true));
+  }
+  function takeoverReview(plan) {
+    body.append(node('p', 'Recreates every listed service under the same Compose project and container names. There will be downtime; changes stored only in container writable layers are lost. Back up mounted application data first.', 'notice'));
+    const targets = node('ul', undefined, 'service-list'); plan.targets.forEach(name => targets.append(node('li', name))); body.append(targets);
+    body.append(node('p', 'Existing image IDs, named volumes, networks and host bind paths are retained. Images become pinned locally: edit their references explicitly before future registry upgrades. Unsupported or mismatched dependencies block takeover.', 'muted'));
+    body.append(node('p', 'Disable Portainer GitOps, webhooks and every other writer before continuing. Portainer can still display and control this project: Dockspire cannot revoke its rights. Do not delete the Portainer stack to hand it off; deletion can remove the running workload. Do not manage it in both tools.', 'notice'));
+    body.append(node('p', 'If an attempt was interrupted, this reapplies only its recorded configuration to the captured original containers or verified Dockspire replacements. Inspect the workload first. No automatic rollback or volume deletion is performed.', 'muted'));
+    const writers = node('input'); writers.type = 'checkbox';
+    body.append(field('I backed up the data and disabled Portainer automation, webhooks and all other writers. I accept recreation and downtime.', writers));
+    const confirmation = node('input'); confirmation.placeholder = plan.name; body.append(field(`Type ${plan.name} to confirm takeover`, confirmation));
+    const submit = button('Take over and redeploy', () => operation(async () => {
+      const current = generation;
+      const job = await api(`/api/stacks/${encodeURIComponent(plan.name)}/operations`, 'POST', { planId: plan.id, confirmation: confirmation.value, portainerWritersDisabled: writers.checked });
+      if (current !== generation || !dialog.open) return;
+      await watchJob(job);
+    }), true);
+    const validate = () => { submit.disabled = !writers.checked || confirmation.value !== plan.name; };
+    writers.addEventListener('change', validate); confirmation.addEventListener('input', validate); validate(); body.append(submit);
   }
   function lifecycleReview(plan) {
     body.append(node('p', `${plan.containerId ? 'One container' : 'Existing containers in this stack'} · ${plan.containers.length} target(s)`, 'muted'));
@@ -335,7 +358,12 @@ window.stackUI = (() => {
     if (current !== generation) return;
     const history = historyResult.jobs; open(name); body.append(window.monitorUI.stackServices(name));
     historyResult.warnings.forEach(warning => body.append(node('p', warning, 'notice')));
-    if (record.origin === 'portainer') body.append(node('p', 'Imported configuration copy · Portainer still manages this stack. This copy is read-only; editing, deployment, and container actions are unavailable.', 'notice'));
+    if (!managed(record)) {
+      body.append(node('p', record.takeoverStatus === 'pending' ? 'Takeover is incomplete. Inspect existing containers and data before reviewing takeover recovery. Editing and lifecycle controls stay locked until ownership is verified.' : 'Imported configuration copy · Portainer still manages the workload. Takeover is a separate explicit operation; importing alone never changes containers.', 'notice'));
+      const active = history.find(job => job.status === 'running');
+      if (active) body.append(button('View active operation', () => watchJob(active), true));
+      else if (session.deployEnabled) body.append(button(record.takeoverStatus === 'pending' ? 'Review takeover recovery' : 'Review takeover', () => operation(() => review(name, '', 'takeover')), true));
+    }
     else {
       const active = history.find(job => job.status === 'running'), pending = record.deployedAt && record.appliedRevision !== record.fingerprint;
       body.append(node('p', active ? 'A container operation is in progress. Wait for its result before making changes.' : record.recoveryRequired ? 'A previous deployment needs inspection. Existing containers may have changed. Review whole-stack recovery or use the reviewed controls for existing containers.' : record.deployedAt ? (pending ? 'Saved configuration has unapplied changes. Review and update the whole stack to apply them.' : `Last successful deployment: ${new Date(record.deployedAt).toLocaleString()}`) : 'Saved draft. No containers have been deployed by this draft.', 'notice'));
@@ -353,7 +381,7 @@ window.stackUI = (() => {
         body.append(node('h3', 'Start, stop & restart'), node('p', 'Operate on existing containers without deploying saved edits. Each action opens a review.', 'muted'), controls);
       }
     }
-    body.append(button('Configuration history', () => configurationHistory(name, record.origin === 'new')), button('Export Compose', () => archiveDialog(name)));
+    body.append(button('Configuration history', () => configurationHistory(name, managed(record))), button('Export Compose', () => archiveDialog(name)));
     if (history.length || historyResult.nextCursor) {
       body.append(node('h3', 'Recent operations')); const list = node('div', undefined, 'job-history');
       const pager = node('div', undefined, 'form-actions');
@@ -373,7 +401,7 @@ window.stackUI = (() => {
     if (notice) message(notice);
   }
   async function openContainer(item, initial = 'overview') {
-    const stack = snapshot.stacks.find(stack => stack.name === item.stack && stack.definition === 'Saved' && stack.origin === 'new');
+    const stack = snapshot.stacks.find(stack => stack.name === item.stack && stack.definition === 'Saved' && managed(stack));
     if (dialog.open) dialog.close();
     window.monitorUI.open(item, stack && item.service && session.deployEnabled ? () => {
       open(`Review ${item.service}`); operation(() => review(item.stack, item.id));
@@ -384,10 +412,10 @@ window.stackUI = (() => {
   function importStack(selected) {
     open('Import a stack');
     body.append(node('p', 'Choose where your stack configuration comes from.', 'muted'));
-    body.append(node('p', 'Import copies configuration. Existing containers and their manager remain unchanged; taking over an existing stack is not supported.', 'notice'));
+    body.append(node('p', 'Import copies configuration. Existing containers and their manager remain unchanged; Portainer takeover requires a separate explicit review after importing.', 'notice'));
     const sources = node('div', undefined, 'import-sources');
     [
-      ['Portainer', session?.importEnabled ? 'Source access enabled' : 'Source access disabled', 'Preview and save a read-only copy of a discovered Portainer Compose stack. Portainer keeps managing its containers.', () => importPortainer(selected)],
+      ['Portainer', session?.importEnabled ? 'Direct source connected' : 'Compose file upload available', 'Load an exported Compose file as a new draft, or copy a discovered same-host definition when direct source access is configured. Portainer keeps managing its containers.', () => importPortainer(selected)],
       ['Dockge', 'Compose file → new draft', 'Load or paste the stack’s compose.yaml and optionally its environment file.', () => editorForm(null, 'Dockge')],
       ['Docker Compose', 'Compose file → new draft', 'Load compose.yaml or docker-compose.yml from a manually managed project.', () => editorForm(null, 'Docker Compose')],
       ['Other manager', 'Compose file → new draft', 'Use a standard Docker Compose file from another manager. Proprietary backup formats are not supported.', () => editorForm(null, 'another manager')],
@@ -401,8 +429,10 @@ window.stackUI = (() => {
   function importPortainer(selected) {
     open('Import from Portainer');
     body.append(button('Back to import sources', () => importStack()));
-    if (!session?.importEnabled) { body.append(node('p', 'Portainer source access is disabled. Enable the optional compose.portainer.yaml configuration described in the installation guide, using an authorized read-only mount of only Portainer’s compose directory. Opening this screen does not read Portainer files.', 'notice')); return; }
-    body.append(node('p', 'Import saves a read-only configuration copy. Portainer keeps managing the stack; containers and source files are unchanged.', 'notice'));
+    body.append(button('Load exported Compose file', () => editorForm(null, 'Portainer')));
+    body.append(node('p', 'A file import creates a new draft with an unused stack name. It does not adopt, deploy or stop existing workloads.', 'muted'));
+    if (!session?.importEnabled) { body.append(node('p', 'Direct Portainer source access is not connected. File upload above works without it. For same-host discovery, enable the optional compose.portainer.yaml configuration described in the installation guide, with an authorized read-only mount of only Portainer’s compose directory. Opening this screen does not read Portainer files.', 'notice')); return; }
+    body.append(node('p', 'Import saves a configuration copy. Portainer keeps managing the stack until you choose Review takeover and confirm Take over and redeploy.', 'notice'));
     const environmentNotice = session.environmentImportEnabled ? 'Associated .env and stack.env files will be copied, when present, into Dockspire’s private library. Exported backups can contain those values.' : 'Associated .env and stack.env files are excluded. An operator must explicitly enable environment-file import to include them.';
     body.append(node('p', environmentNotice, 'muted'));
     const choices = (snapshot?.stacks || []).filter(item => item.importId && item.definition !== 'Saved');

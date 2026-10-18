@@ -10,7 +10,7 @@ class Element {
   setAttribute() {}
   removeAttribute() {}
 }
-function fixture() {
+function fixture({ passwordless = false } = {}) {
   const elements = new Map();
   const get = id => {
     if (!elements.has(id)) elements.set(id, new Element());
@@ -26,7 +26,7 @@ function fixture() {
     fetch: async (path, options) => {
       requests.push({ path, options });
       if (failure) throw failure;
-      return { ok: status === 200, status, json: async () => ({ csrfToken: 'fixture-csrf', error: status === 429 ? 'Too many sign-in attempts.' : 'Incorrect username or password' }) };
+      return { ok: status === 200, status, json: async () => ({ version: 'v2.3.4-fixture', passwordless, csrfToken: 'fixture-csrf', error: status === 429 ? 'Too many sign-in attempts.' : 'Incorrect username or password' }) };
     },
   });
   return { context, get, redirects, requests, status: value => { status = value; }, failure: value => { failure = value; } };
@@ -89,5 +89,16 @@ for (const initialized of [false, true]) {
   assert.equal(logout.options.method, 'POST');
   assert.equal(logout.options.headers['X-Stacklane-CSRF'], 'fixture-csrf');
   assert.equal(vm.runInContext('session', f.context), null);
+}
+{
+  const f = fixture({ passwordless: true });
+  vm.runInContext(appSource, f.context);
+  await vm.runInContext('api("/api/inventory")', f.context);
+  assert.equal(f.get('sign-out').hidden, true);
+  assert.equal(f.get('build-version').textContent, 'v2.3.4-fixture');
+  const before = f.requests.length;
+  await f.get('sign-out').events.click();
+  assert.equal(f.requests.length, before);
+  assert.deepEqual(f.redirects, []);
 }
 console.log('Authentication UI regression checks passed');

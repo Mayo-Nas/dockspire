@@ -23,6 +23,9 @@ import (
 	webassets "github.com/Mayo-Nas/dockspire/web"
 )
 
+// Version is set from the validated release tag at build time; local builds are dev.
+var Version = "dev"
+
 type inventorySource interface {
 	Snapshot(context.Context) (Inventory, error)
 	ProjectContainers(context.Context, string) ([]Container, error)
@@ -32,6 +35,7 @@ type inventorySource interface {
 func Run() {
 	listen := flag.String("listen", "127.0.0.1:8787", "HTTP(S) listen address; HTTP defaults to loopback, HTTPS to :9443")
 	https := flag.Bool("https", false, "Serve HTTPS directly (default listen address :9443)")
+	allowHTTP := flag.Bool("allow-http", false, "Allow LAN HTTP on IP addresses (default listen address :8787); use only on a trusted network")
 	tlsCert := flag.String("tls-cert", "", "Custom PEM TLS certificate; requires --https and --tls-key")
 	tlsKey := flag.String("tls-key", "", "Custom PEM TLS private key")
 	tlsHosts := flag.String("tls-hosts", "", "Comma-separated DNS names/IPs for a newly generated certificate; does not make it trusted")
@@ -43,7 +47,7 @@ func Run() {
 	dataDir := flag.String("data-dir", "data", "Private stack library directory")
 	initAdmin := flag.Bool("init-admin", false, "Offline: initialize admin password from piped stdin and exit")
 	resetAdmin := flag.Bool("reset-admin", false, "Offline: reset admin password from piped stdin; stop the server first")
-	externalURL := flag.String("external-url", "", "Optional exact HTTPS origin; HTTP access otherwise accepts localhost/SSH tunnels only")
+	externalURL := flag.String("external-url", "", "Optional exact HTTP(S) origin; HTTP DNS names require this setting")
 	composeBinary := flag.String("compose-binary", "/docker-compose", "Standalone Docker Compose executable")
 	portainerRoot := flag.String("portainer-root", "", "Read-only mount of Portainer's compose directory")
 	allowImport := flag.Bool("allow-portainer-import", false, "Permit reading Portainer Compose and related environment files")
@@ -70,7 +74,16 @@ func Run() {
 		fmt.Println("SHA256 Fingerprint=" + fingerprint)
 		return
 	}
-	if *https {
+	if *https && *allowHTTP {
+		log.Fatal("Choose --allow-http or --https, not both")
+	}
+	if *https && strings.HasPrefix(strings.ToLower(*externalURL), "http://") {
+		log.Fatal("Use an HTTPS external-url with --https")
+	}
+	if *allowHTTP && strings.HasPrefix(strings.ToLower(*externalURL), "https://") {
+		log.Fatal("Use an HTTP external-url with --allow-http; HTTPS proxies can use --listen without --allow-http")
+	}
+	if *https || *allowHTTP {
 		explicitListen := false
 		flag.Visit(func(f *flag.Flag) {
 			if f.Name == "listen" {
@@ -78,7 +91,10 @@ func Run() {
 			}
 		})
 		if !explicitListen {
-			*listen = ":9443"
+			*listen = ":8787"
+			if *https {
+				*listen = ":9443"
+			}
 		}
 	}
 	if *healthcheck {
@@ -167,6 +183,7 @@ func Run() {
 			log.Fatal(err)
 		}
 		access.directTLS = *https
+		access.allowHTTP = *allowHTTP
 		access.secure = access.secure || *https
 	}
 	var source inventorySource = newDockerSource(*socket)
@@ -216,7 +233,6 @@ func Run() {
 	log.Printf("Dockspire listening on %s (demo=%t)", *listen, *demo)
 	if required, _ := access.setupState(); required {
 		log.Print("Create the administrator in your browser within five minutes. Restart Dockspire if setup times out.")
-		log.Printf("One-time administrator setup token: %s", access.setupToken)
 	}
 	serve := server.ListenAndServe
 	if *https {
@@ -257,7 +273,7 @@ func newApplicationHandler(source inventorySource, library *stackLibrary, access
 			_, isDemo = library.runner.(demoCompose)
 		}
 		importEnabled := library != nil && library.allowImport && library.portainerRoot != "" && !isDemo
-		writeJSON(w, http.StatusOK, map[string]any{"csrfToken": requestCSRF, "stackLibrary": library != nil, "importEnabled": importEnabled, "environmentImportEnabled": importEnabled && library.includeEnvironment, "deployEnabled": library != nil && !isDemo})
+		writeJSON(w, http.StatusOK, map[string]any{"csrfToken": requestCSRF, "version": Version, "passwordless": access != nil && access.passwordless(), "stackLibrary": library != nil, "importEnabled": importEnabled, "environmentImportEnabled": importEnabled && library.includeEnvironment, "deployEnabled": library != nil && !isDemo})
 	})
 	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
 		capability := "inventory-only"
@@ -291,6 +307,10 @@ func newApplicationHandler(source inventorySource, library *stackLibrary, access
 					if data.Stacks[i].Name == record.Name {
 						data.Stacks[i].Definition = definition
 						data.Stacks[i].Origin = record.Origin
+						data.Stacks[i].Managed = record.managed()
+						if record.Takeover != nil {
+							data.Stacks[i].TakeoverStatus = record.Takeover.State
+						}
 						data.Stacks[i].Source = record.Origin
 						found = true
 					}
@@ -306,7 +326,11 @@ func newApplicationHandler(source inventorySource, library *stackLibrary, access
 					if record.Unavailable {
 						state = "unavailable"
 					}
-					data.Stacks = append(data.Stacks, Stack{Name: record.Name, State: state, Source: record.Origin, Definition: definition, Origin: record.Origin})
+					item := Stack{Name: record.Name, State: state, Source: record.Origin, Definition: definition, Origin: record.Origin, Managed: record.managed()}
+					if record.Takeover != nil {
+						item.TakeoverStatus = record.Takeover.State
+					}
+					data.Stacks = append(data.Stacks, item)
 				}
 			}
 		}
@@ -393,7 +417,7 @@ func registerStackRoutes(mux *http.ServeMux, library *stackLibrary) {
 			writeJSON(w, 400, map[string]string{"error": err.Error()})
 			return
 		}
-		writeJSON(w, 200, value)
+		writeJSON(w, 200, publicStackValue(value))
 	}
 	mux.HandleFunc("GET /api/stacks", func(w http.ResponseWriter, r *http.Request) { records, err := library.list(); respond(w, records, err) })
 	mux.HandleFunc("GET /api/stacks/{name}", func(w http.ResponseWriter, r *http.Request) {
@@ -514,15 +538,16 @@ func registerStackRoutes(mux *http.ServeMux, library *stackLibrary) {
 	})
 	mux.HandleFunc("POST /api/stacks/{name}/operations", func(w http.ResponseWriter, r *http.Request) {
 		var input struct {
-			Confirmation string `json:"confirmation"`
-			PlanID       string `json:"planId"`
+			Confirmation             string `json:"confirmation"`
+			PlanID                   string `json:"planId"`
+			PortainerWritersDisabled bool   `json:"portainerWritersDisabled"`
 		}
 		if !decode(w, r, &input) {
 			return
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 		defer cancel()
-		job, err := library.startJob(ctx, r.PathValue("name"), input.PlanID, input.Confirmation)
+		job, err := library.startJob(ctx, r.PathValue("name"), input.PlanID, input.Confirmation, input.PortainerWritersDisabled)
 		if err != nil {
 			respond(w, nil, err)
 			return

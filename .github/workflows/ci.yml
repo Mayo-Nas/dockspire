@@ -99,6 +99,10 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.27.2'
+      - name: Check explicit takeover with disposable workloads
+        run: |
+          set -eu
+          GOTELEMETRY=off GOTOOLCHAIN=local CGO_ENABLED=0 DOCKSPIRE_TAKEOVER_TEST=1 DOCKSPIRE_TEST_IMAGE="$(docker image inspect --format '{{.Id}}' dockspire:ci)" go test ./internal/app -run '^TestTakeoverDockerIntegration$' -count=1 -timeout=5m
       - name: Scan the exact image executables
         run: |
           set -eu

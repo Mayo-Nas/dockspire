@@ -2,10 +2,10 @@ name: dockspire
 services:
   app:
     image: ${DOCKSPIRE_IMAGE:?Set DOCKSPIRE_IMAGE to a published version or image digest}
-    command: ["--https", "--setup", "--data-dir", "/appdata", "--tls-hosts", "${DOCKSPIRE_TLS_HOSTS:-}", "--external-url", "${DOCKSPIRE_EXTERNAL_URL:-}"]
+    command: ["--allow-http", "--setup", "--data-dir", "/appdata", "--external-url", "${DOCKSPIRE_EXTERNAL_URL:-}"]
     restart: unless-stopped
     ports:
-      - "${DOCKSPIRE_BIND_ADDRESS:-0.0.0.0}:${DOCKSPIRE_HTTPS_PORT:-9443}:9443"
+      - "${DOCKSPIRE_BIND_ADDRESS:-0.0.0.0}:${DOCKSPIRE_HTTP_PORT:-8787}:8787"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - dockspire_data:/appdata
@@ -18,7 +18,7 @@ services:
     cpus: 0.5
     pids_limit: 64
     healthcheck:
-      test: ["CMD", "/stacklane", "--healthcheck", "--https"]
+      test: ["CMD", "/stacklane", "--healthcheck"]
       interval: 30s
       timeout: 5s
       retries: 3

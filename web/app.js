@@ -29,6 +29,8 @@ async function api(path, method = 'GET', body, signal) {
     requireSignIn(response);
     if (!response.ok) throw new Error('Could not initialize this session.');
     session = await response.json();
+    $('build-version').textContent = session.version || 'dev';
+    $('sign-out').hidden = Boolean(session.passwordless);
   }
   const options = { method, cache: 'no-store', signal: AbortSignal.timeout(method === 'POST' ? 175000 : 25000) };
   if (signal) options.signal = AbortSignal.any([signal, options.signal]);
@@ -157,7 +159,7 @@ function render() {
   } else if (view === 'stacks') {
     drawTable(['Name', 'State', 'Containers', 'Definition'], items('stacks').map((item) => [
       nameCell(item.name, 'Docker Compose', () => window.stackUI.open(item)),
-      badge(item.state), `${item.running} / ${item.containers} running`, item.definition === 'Unavailable' ? 'Unavailable · restore from backup' : item.definition === 'Saved' ? (item.origin === 'portainer' ? 'Imported · view only' : 'Saved') : 'Not imported',
+      badge(item.state), `${item.running} / ${item.containers} running`, item.definition === 'Unavailable' ? 'Unavailable · restore from backup' : item.definition === 'Saved' ? (item.origin === 'portainer' ? item.managed ? 'Taken over · managed' : item.takeoverStatus === 'pending' ? 'Takeover needs recovery' : 'Imported · review takeover' : 'Saved') : 'Not imported',
     ]));
   } else if (view === 'images') {
     drawTable(['Image', 'Size'], items('images').map((item) => [nameCell(item.tags.join(', '), item.id), bytes(item.size)]));
@@ -223,6 +225,7 @@ async function refresh() {
 }
 $('refresh').addEventListener('click', refresh);
 $('sign-out').addEventListener('click', async () => {
+  if (session?.passwordless) return;
   $('sign-out').disabled = true;
   try {
     await api('/api/auth/logout', 'POST');

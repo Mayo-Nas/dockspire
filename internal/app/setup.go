@@ -1,15 +1,12 @@
 package app
 
 import (
-	"crypto/rand"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -38,7 +35,6 @@ func loadServerAccess(root, origin string, browserSetup bool) (*adminAccess, err
 		return nil, err
 	}
 	a.setupRoot, a.setupDeadline = root, a.now().Add(setupLifetime)
-	a.setupToken = rand.Text()
 	return a, nil
 }
 
@@ -59,39 +55,22 @@ func (a *adminAccess) setup(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 403, map[string]string{"error": "Setup timed out. Restart Dockspire to open a new five-minute setup window."})
 		return
 	}
-	var input struct {
-		Token        string `json:"token"`
-		Password     string `json:"password"`
-		Confirmation string `json:"confirmation"`
+	if !a.allowAuthAttempt(w, r) {
+		return
 	}
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16384))
+	var input struct {
+		Password     *string `json:"password"`
+		Confirmation *string `json:"confirmation"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, authRequestLimit))
 	decoder.DisallowUnknownFields()
 	var extra any
 	if decoder.Decode(&input) != nil || decoder.Decode(&extra) != io.EOF {
-		if !a.allowAuthAttempt(w, r) {
-			return
-		}
-		writeJSON(w, 400, map[string]string{"error": "Use matching passwords of at least 15 characters and at most 1024 UTF-8 bytes."})
+		writeJSON(w, 400, map[string]string{"error": "Provide both password fields as matching strings."})
 		return
 	}
-	a.mu.Lock()
-	token := a.setupToken
-	a.mu.Unlock()
-	if token == "" {
-		writeJSON(w, 409, map[string]string{"error": "Administrator already exists. Sign in instead."})
-		return
-	}
-	if subtle.ConstantTimeCompare([]byte(input.Token), []byte(token)) != 1 {
-		if !a.allowAuthAttempt(w, r) {
-			return
-		}
-		writeJSON(w, 400, map[string]string{"error": "Enter the setup token from the Dockspire container logs."})
-		return
-	}
-	// A valid one-time token is the operator's recovery path even when another
-	// client behind the same NAT/proxy exhausted the anonymous attempt allowance.
-	if !validAdminPassword(input.Password) || input.Password != input.Confirmation {
-		writeJSON(w, 400, map[string]string{"error": "Use matching passwords of at least 15 characters and at most 1024 UTF-8 bytes."})
+	if input.Password == nil || input.Confirmation == nil || *input.Password != *input.Confirmation {
+		writeJSON(w, 400, map[string]string{"error": "Provide both password fields as matching strings."})
 		return
 	}
 	if !a.loginMu.TryLock() {
@@ -109,7 +88,7 @@ func (a *adminAccess) setup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Exclusive creation prevents a second process or request from replacing admin.
-	if err := setAdminPassword(a.setupRoot, strings.NewReader(input.Password), false); err != nil {
+	if err := storeAdminCredential(a.setupRoot, *input.Password, false); err != nil {
 		writeJSON(w, 503, map[string]string{"error": "Could not initialize administrator. Check private storage and restart Dockspire."})
 		return
 	}
@@ -120,10 +99,9 @@ func (a *adminAccess) setup(w http.ResponseWriter, r *http.Request) {
 	}
 	a.mu.Lock()
 	a.credential = credential
-	a.setupToken = ""
 	a.mu.Unlock()
 	a.mu.Lock()
 	a.attempts = nil
 	a.mu.Unlock()
-	writeJSON(w, 201, map[string]bool{"created": true})
+	writeJSON(w, 201, map[string]bool{"created": true, "passwordless": credential.Mode == "passwordless"})
 }

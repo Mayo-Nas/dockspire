@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"crypto/pbkdf2"
 	"crypto/rand"
@@ -16,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -24,29 +26,44 @@ import (
 
 const passwordIterations = 600000
 const sessionLifetime = 8 * time.Hour
+const authRequestLimit = 1 << 20 // Generic JSON/stdin transport ceiling, not a password policy.
 
 // A single local administrator; no account database or persisted bearer tokens.
 type adminCredential struct {
 	Version int    `json:"version"`
-	Salt    []byte `json:"salt"`
-	Hash    []byte `json:"hash"`
+	Mode    string `json:"mode,omitempty"`
+	Salt    []byte `json:"salt,omitempty"`
+	Hash    []byte `json:"hash,omitempty"`
 }
 
-func validAdminPassword(password string) bool {
-	return utf8.ValidString(password) && utf8.RuneCountInString(password) >= 15 && len(password) <= 1024 && !strings.ContainsAny(password, "\r\n\x00")
+func encodedLoginFits(password string) bool {
+	var encoded bytes.Buffer
+	encoder := json.NewEncoder(&encoded)
+	encoder.SetEscapeHTML(false)
+	err := encoder.Encode(map[string]string{"username": "admin", "password": password})
+	return err == nil && utf8.ValidString(password) && encoded.Len()-1 <= authRequestLimit
 }
 
 // stdin avoids putting the password in process arguments, environment, or logs.
 // The caller supplies a pipe (or a file redirected to stdin), not an echoing terminal.
 func setAdminPassword(root string, input io.Reader, reset bool) error {
-	data, err := io.ReadAll(io.LimitReader(input, 1027))
+	data, err := io.ReadAll(io.LimitReader(input, authRequestLimit+1))
 	if err != nil {
 		return errors.New("Could not read password from stdin")
 	}
-	password := strings.TrimSuffix(strings.TrimSuffix(string(data), "\n"), "\r")
-	if !validAdminPassword(password) {
-		return errors.New("Use a password of at least 15 characters and at most 1024 UTF-8 bytes, on one line")
+	if len(data) == 0 {
+		return errors.New("Empty stdin does not change access mode; choose explicit blank browser setup for passwordless access")
 	}
+	if len(data) > authRequestLimit {
+		return errors.New("Administrator input exceeds the 1 MiB request-size limit")
+	}
+	if !encodedLoginFits(string(data)) {
+		return errors.New("Administrator input must fit a 1 MiB UTF-8 JSON sign-in request")
+	}
+	return storeAdminCredential(root, string(data), reset)
+}
+
+func storeAdminCredential(root, password string, reset bool) error {
 	if err := ensurePrivateDirectory(root); err != nil {
 		return errors.New("Cannot create the private data directory")
 	}
@@ -63,13 +80,17 @@ func setAdminPassword(root string, input io.Reader, reset bool) error {
 	} else if !os.IsNotExist(err) {
 		return errors.New("Administrator already exists or cannot be checked; stop the server and use --reset-admin")
 	}
-	credential := adminCredential{Version: 1, Salt: make([]byte, 16)}
-	if _, err := rand.Read(credential.Salt); err != nil {
-		return err
-	}
-	credential.Hash, err = pbkdf2.Key(sha256.New, password, credential.Salt, passwordIterations, 32)
-	if err != nil {
-		return err
+	credential := adminCredential{Version: 2, Mode: "passwordless"}
+	if password != "" {
+		credential = adminCredential{Version: 1, Salt: make([]byte, 16)}
+		if _, err := rand.Read(credential.Salt); err != nil {
+			return err
+		}
+		var err error
+		credential.Hash, err = pbkdf2.Key(sha256.New, password, credential.Salt, passwordIterations, 32)
+		if err != nil {
+			return err
+		}
 	}
 	if reset {
 		return atomicJSON(filename, credential)
@@ -102,7 +123,7 @@ func loadAdminCredential(root string) (adminCredential, error) {
 	defer file.Close()
 	decoder := json.NewDecoder(io.LimitReader(file, 4097))
 	decoder.DisallowUnknownFields()
-	if decoder.Decode(&credential) != nil || credential.Version != 1 || len(credential.Salt) != 16 || len(credential.Hash) != 32 {
+	if decoder.Decode(&credential) != nil || !((credential.Version == 1 && credential.Mode == "" && len(credential.Salt) == 16 && len(credential.Hash) == 32) || (credential.Version == 2 && credential.Mode == "passwordless" && credential.Salt == nil && credential.Hash == nil)) {
 		return credential, errors.New("Invalid administrator file; refusing to start")
 	}
 	var extra any
@@ -122,10 +143,10 @@ type adminSessionKey struct{}
 type adminAccess struct {
 	credential    adminCredential
 	setupRoot     string
-	setupToken    string
 	setupDeadline time.Time
 	directTLS     bool
-	origin        string // Empty means localhost/SSH access with the browser's port.
+	allowHTTP     bool
+	origin        string // Empty permits loopback, or IP addresses with explicit LAN HTTP.
 	secure        bool
 	mu            sync.Mutex
 	sessions      map[[32]byte]adminSession
@@ -138,11 +159,11 @@ func newAdminAccess(credential adminCredential, externalURL string) (*adminAcces
 	a := &adminAccess{credential: credential, sessions: make(map[[32]byte]adminSession), now: time.Now}
 	if externalURL != "" {
 		u, err := url.Parse(externalURL)
-		if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || (u.Path != "" && u.Path != "/") || u.RawPath != "" || strings.HasSuffix(u.Host, ":") {
-			return nil, errors.New("external-url must be an HTTPS origin, for example https://stacks.example.test, without credentials, a path, query, or fragment")
+		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || !validHostAuthority(u.Host) || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || (u.Path != "" && u.Path != "/") || u.RawPath != "" {
+			return nil, errors.New("external-url must be an HTTP(S) origin, for example http://stacks.example.test:8787, without credentials, a path, query, or fragment")
 		}
-		a.origin = "https://" + strings.ToLower(u.Host)
-		a.secure = true
+		a.origin = u.Scheme + "://" + canonicalAuthority(u.Host, u.Scheme)
+		a.secure = u.Scheme == "https"
 	}
 	return a, nil
 }
@@ -155,20 +176,54 @@ func loopbackHost(authority string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "[::1]" || host == "::1"
 }
 
-func (a *adminAccess) allowedHost(r *http.Request) bool {
-	if a.directTLS {
-		if r.TLS == nil {
+func validHostAuthority(authority string) bool {
+	u, err := url.Parse("http://" + authority)
+	if err != nil || u.Hostname() == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || strings.HasSuffix(authority, ":") {
+		return false
+	}
+	if strings.Contains(u.Hostname(), ":") && !strings.HasPrefix(authority, "[") {
+		return false
+	}
+	if strings.HasPrefix(authority, "[") && net.ParseIP(u.Hostname()) == nil {
+		return false
+	}
+	if port := u.Port(); port != "" {
+		number, err := strconv.Atoi(port)
+		if err != nil || number < 1 || number > 65535 {
 			return false
 		}
-		if a.origin == "" {
-			u, err := url.Parse("https://" + r.Host)
-			return err == nil && u.Hostname() != "" && u.User == nil && u.Path == "" && u.RawQuery == "" && u.Fragment == ""
+	}
+	return true
+}
+
+func canonicalAuthority(authority, scheme string) string {
+	u, _ := url.Parse(scheme + "://" + authority)
+	if (scheme == "http" && u.Port() == "80") || (scheme == "https" && u.Port() == "443") {
+		host := strings.ToLower(u.Hostname())
+		if strings.Contains(host, ":") {
+			host = "[" + host + "]"
 		}
+		return host
 	}
-	if a.origin == "" {
-		return loopbackHost(r.Host)
+	return strings.ToLower(authority)
+}
+
+func (a *adminAccess) allowedHost(r *http.Request) bool {
+	if !validHostAuthority(r.Host) {
+		return false
 	}
-	return strings.EqualFold("https://"+r.Host, a.origin) || (r.URL.Path == "/api/health" && loopbackHost(r.Host))
+	if a.directTLS && r.TLS == nil {
+		return false
+	}
+	if a.origin != "" {
+		parts := strings.SplitN(a.origin, "://", 2)
+		return canonicalAuthority(r.Host, parts[0]) == parts[1] || (r.URL.Path == "/api/health" && loopbackHost(r.Host))
+	}
+	if a.directTLS || a.allowHTTP {
+		u, _ := url.Parse("http://" + r.Host)
+		return a.directTLS || loopbackHost(r.Host) || net.ParseIP(u.Hostname()) != nil
+	}
+	return loopbackHost(r.Host)
 }
 
 func (a *adminAccess) requestOrigin(r *http.Request) string {
@@ -179,7 +234,7 @@ func (a *adminAccess) requestOrigin(r *http.Request) string {
 	if r.TLS != nil {
 		scheme = "https"
 	}
-	return scheme + "://" + r.Host
+	return scheme + "://" + canonicalAuthority(r.Host, scheme)
 }
 
 func (a *adminAccess) cookieName() string {
@@ -213,6 +268,12 @@ func (a *adminAccess) session(r *http.Request) (adminSession, [32]byte, bool) {
 	return session, key, ok
 }
 
+func (a *adminAccess) passwordless() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.credential.Version == 2 && a.credential.Mode == "passwordless"
+}
+
 func (a *adminAccess) login(w http.ResponseWriter, r *http.Request) {
 	if !a.allowAuthAttempt(w, r) {
 		return
@@ -224,14 +285,18 @@ func (a *adminAccess) login(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 409, map[string]string{"error": "Complete administrator setup first"})
 		return
 	}
+	if credential.Mode == "passwordless" {
+		writeJSON(w, 409, map[string]string{"error": "Passwordless access is enabled; open the dashboard"})
+		return
+	}
 	var input struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192))
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, authRequestLimit))
 	decoder.DisallowUnknownFields()
 	var extra any
-	if decoder.Decode(&input) != nil || decoder.Decode(&extra) != io.EOF || len(input.Password) > 1024 || !utf8.ValidString(input.Password) {
+	if decoder.Decode(&input) != nil || decoder.Decode(&extra) != io.EOF {
 		writeJSON(w, 400, map[string]string{"error": "Invalid sign-in request"})
 		return
 	}
@@ -243,12 +308,17 @@ func (a *adminAccess) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer a.loginMu.Unlock()
-	now := a.now()
 	hash, err := pbkdf2.Key(sha256.New, input.Password, credential.Salt, passwordIterations, 32)
 	if err != nil || subtle.ConstantTimeCompare(hash, credential.Hash) != 1 || input.Username != "admin" {
 		writeJSON(w, 401, map[string]string{"error": "Incorrect username or password"})
 		return
 	}
+	a.startSession(w, r)
+	writeJSON(w, 200, map[string]bool{"authenticated": true})
+}
+
+func (a *adminAccess) startSession(w http.ResponseWriter, r *http.Request) (adminSession, [32]byte) {
+	now := a.now()
 	// 32 random bytes for both tokens; the map holds only a digest of the cookie.
 	tokenBytes := make([]byte, 32)
 	_, _ = rand.Read(tokenBytes)
@@ -278,7 +348,7 @@ func (a *adminAccess) login(w http.ResponseWriter, r *http.Request) {
 	a.sessions[sha256.Sum256([]byte(token))] = session
 	a.mu.Unlock()
 	a.cookie(w, token, session.expires)
-	writeJSON(w, 200, map[string]bool{"authenticated": true})
+	return session, sha256.Sum256([]byte(token))
 }
 
 func (a *adminAccess) protect(next http.Handler) http.Handler {
@@ -306,7 +376,11 @@ func (a *adminAccess) protect(next http.Handler) http.Handler {
 			return
 		}
 		if r.URL.Path == "/setup" || r.URL.Path == "/setup.js" {
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			target := "/login"
+			if a.passwordless() {
+				target = "/"
+			}
+			http.Redirect(w, r, target, http.StatusSeeOther)
 			return
 		}
 		if r.URL.Path == "/api/auth/login" && r.Method == http.MethodPost {
@@ -318,6 +392,10 @@ func (a *adminAccess) protect(next http.Handler) http.Handler {
 			return
 		}
 		session, key, authenticated := a.session(r)
+		if a.passwordless() && !authenticated && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
+			session, key = a.startSession(w, r)
+			authenticated = true
+		}
 		// Only the exact static assets needed before sign-in are public.
 		publicAsset := false
 		switch r.URL.Path {

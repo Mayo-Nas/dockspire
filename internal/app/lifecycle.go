@@ -28,6 +28,9 @@ func isLifecycle(action string) bool {
 	return action == "start" || action == "stop" || action == "restart"
 }
 func (l *stackLibrary) actionPlan(ctx context.Context, name, id, action string) (UpdatePlan, error) {
+	if action == "takeover" && id == "" {
+		return l.buildTakeoverPlan(ctx, name)
+	}
 	if action == "" {
 		return l.buildPlan(ctx, name, id)
 	}
@@ -38,7 +41,7 @@ func (l *stackLibrary) actionPlan(ctx context.Context, name, id, action string) 
 }
 func (l *stackLibrary) rebuildPlan(ctx context.Context, plan UpdatePlan) (UpdatePlan, error) {
 	action := ""
-	if isLifecycle(plan.Kind) {
+	if isLifecycle(plan.Kind) || plan.Kind == "takeover" {
 		action = plan.Kind
 	}
 	return l.actionPlan(ctx, plan.Name, plan.ContainerID, action)
@@ -53,7 +56,7 @@ func (l *stackLibrary) buildLifecyclePlan(ctx context.Context, name, id, action 
 	if err != nil {
 		return plan, err
 	}
-	if record.Origin != "new" || !record.hasDeployment() {
+	if !record.managed() || !record.hasDeployment() {
 		return plan, errors.New("Start, stop, and restart require a stack deployed by Dockspire; other managers and drafts are view-only")
 	}
 	plan.recordVersion = recordStamp(record)

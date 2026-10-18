@@ -190,7 +190,7 @@ func (l *stackLibrary) revisionPreview(name, revision string) (ConfigurationPrev
 		return ConfigurationPreview{}, errors.New("Saved revision cannot be previewed")
 	}
 	c := &RevisionComparison{Status: "available", BaseRevision: filesFingerprint(current), Revision: revision, Changes: []ConfigurationChange{}}
-	return ConfigurationPreview{revision, recordStamp(record), masked, compareConfiguration(c, current, files), record.Origin == "new" && !l.isBusy(name)}, nil
+	return ConfigurationPreview{revision, recordStamp(record), masked, compareConfiguration(c, current, files), record.managed() && !l.isBusy(name)}, nil
 }
 
 func (l *stackLibrary) restoreRevision(ctx context.Context, name, revision, expected, confirmation string) (StackRecord, error) {
@@ -199,8 +199,8 @@ func (l *stackLibrary) restoreRevision(ctx context.Context, name, revision, expe
 	}
 	l.mu.Lock()
 	record, err := l.unchangedRecord(name, expected)
-	if err == nil && (record.Origin != "new" || l.isBusy(name)) {
-		err = errors.New("Only an idle Dockspire-created stack can restore a revision")
+	if err == nil && (!record.managed() || l.isBusy(name)) {
+		err = errors.New("Only an idle Dockspire-managed stack can restore a revision")
 	}
 	var files map[string]string
 	var directory string
@@ -251,10 +251,13 @@ func (l *stackLibrary) revisionCleanupLocked(ctx context.Context, name string) (
 	if err != nil {
 		return result, err
 	}
-	if record.Origin != "new" || l.active[name] != "" {
-		return result, errors.New("Only an idle Dockspire-created stack can clean up revisions")
+	if !record.managed() || l.active[name] != "" {
+		return result, errors.New("Only an idle Dockspire-managed stack can clean up revisions")
 	}
 	protected := map[string]bool{}
+	if record.Takeover != nil {
+		protected[record.Takeover.Revision] = true
+	}
 	available := map[string]bool{}
 	for _, row := range rows {
 		available[row.Revision] = true
@@ -269,6 +272,9 @@ func (l *stackLibrary) revisionCleanupLocked(ctx context.Context, name string) (
 	}
 	if record.LastDeploymentAttempt != nil && !available[record.LastDeploymentAttempt.Revision] {
 		return result, errors.New("A recovery revision is unavailable; cleanup is blocked")
+	}
+	if record.Takeover != nil && !available[record.Takeover.Revision] {
+		return result, errors.New("The takeover revision is unavailable; cleanup is blocked")
 	}
 	entries, err := os.ReadDir(filepath.Join(l.root, "jobs"))
 	if err != nil && !os.IsNotExist(err) {
@@ -294,7 +300,7 @@ func (l *stackLibrary) revisionCleanupLocked(ctx context.Context, name string) (
 			return result, errors.New("Damaged operation history; cleanup is blocked")
 		}
 		knownStatus := job.Status == "succeeded" || job.Status == "failed" || job.Status == "interrupted"
-		knownKind := isLifecycle(job.Kind) || job.Kind == "deploy" || job.Kind == "update" || job.Kind == "service-update" || job.Kind == "recover"
+		knownKind := isLifecycle(job.Kind) || job.Kind == "deploy" || job.Kind == "update" || job.Kind == "service-update" || job.Kind == "recover" || job.Kind == "takeover"
 		if _, err := time.Parse(time.RFC3339Nano, job.StartedAt); err != nil || !knownStatus || !knownKind {
 			return result, errors.New("Unrecognized operation history; cleanup is blocked")
 		}

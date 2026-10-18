@@ -4,9 +4,9 @@ For first installation and certificate verification, start with [INSTALL.md](INS
 
 ## Administrator access
 
-The container installation starts HTTPS and browser administrator setup. Verify the certificate identity through an authenticated VM console/SSH session before entering the setup token or password. Setup expires after five minutes; restart `app` and retrieve its new one-time token if it expires. The fixed username is `admin`; passwords require at least 15 characters and at most 1024 UTF-8 bytes. Setup cannot replace an existing administrator.
+Current source containers start HTTP on 8787 and browser administrator setup without a token. Use a trusted management network: HTTP has no transport encryption and the first reachable client can claim the administrator during the setup window. Optional HTTPS is available. Setup expires after five minutes; restart app if unfinished. The fixed username is admin. Passwords have no length/composition policy; explicit matching blank browser fields persist passwordless access and take every visitor directly to the dashboard. Anyone who can reach that instance can control its Docker host. Setup cannot replace an existing administrator, and existing password accounts remain protected. Published v0.1.0 retains its tagged HTTPS/token instructions; see INSTALL.md before upgrading.
 
-Sign-out revokes the browser's session. Sessions expire after eight hours, and all sessions end on restart. Password verification is limited per actual connection source, with one expensive verification at a time. Forwarded address headers are ignored. Clients sharing a NAT or reverse proxy share that source allowance; restrict access to the management network. A valid one-time setup token can complete setup despite anonymous throttling from the same address. Restarting clears temporary throttling state without changing an existing password.
+For password accounts, sign-out revokes the browser session; sessions expire after eight hours and end on restart. Passwordless mode hides sign-out and automatically creates a new browser session without sign-in; per-browser CSRF and exact Host/Origin checks still protect mutations. Password verification is limited per actual connection source, with one expensive verification at a time. Forwarded address headers are ignored. Clients sharing a NAT or reverse proxy share that source allowance; restrict access to the management network. Setup attempts share that allowance. Restarting clears temporary throttling state without changing stored access mode.
 
 Native/legacy operation can initialize an administrator offline using piped private input, with the server stopped:
 
@@ -14,7 +14,7 @@ Native/legacy operation can initialize an administrator offline using piped priv
 stacklane --data-dir ./data --init-admin < /path/to/private/password-file
 ```
 
-Never put passwords in arguments, environment variables, shell history or chat. Remove temporary plaintext input files after use. Do not run more than one server or maintenance process against a library.
+Never put passwords in arguments, environment variables, shell history or chat. Nonempty offline stdin is literal UTF-8: trailing newlines, spaces and control characters are part of the password, with no trimming. Keep a password file's exact intended contents; empty EOF fails safely and cannot select passwordless mode. Offline input is bounded to 1 MiB and must also fit a 1 MiB encoded JSON login request; browser JSON bodies share that generic transport limit, including escaping and both setup fields. Oversize input is rejected, never truncated. Remove temporary plaintext input files after use. Do not run more than one server or maintenance process against a library.
 
 To reset a forgotten password in the container installation:
 
@@ -26,7 +26,7 @@ docker compose start app
 
 Reset requires a valid existing private administrator file. Do not delete that file or initialize a new volume as a reset shortcut. Keep whole-volume backups private: they include the password hash, TLS key and potentially secret stack configuration. Portable library archives exclude these authentication/TLS files.
 
-For a TLS reverse proxy, configure an explicit HTTPS `--external-url`, preserve that Host header and restrict the backend HTTP listener to the proxy. Forwarded headers do not authorize alternate origins. The standard production template uses direct TLS and needs no reverse proxy. See the installation guide for exact settings.
+For a TLS reverse proxy, configure an explicit HTTPS `--external-url`, preserve that Host header and restrict the backend HTTP listener to the proxy. Forwarded headers do not authorize alternate origins. The current container template uses explicit LAN HTTP; a TLS proxy command must omit --allow-http and pin the HTTPS external URL. Direct HTTPS remains optional. See the installation guide for exact settings.
 
 ## Container monitoring
 
@@ -42,7 +42,19 @@ Choose **Stacks → Add stack**, enter an unused Compose project name and YAML, 
 
 Image-based services, named volumes, absolute Linux bind paths, and `.env`/`stack.env` are supported. Builds, includes, extends and arbitrary attachments are not supported by the editor. Treat command/comment text as sensitive too: automatic masking cannot identify every arbitrary secret.
 
-**Import stack** accepts ordinary Compose/environment files from Compose-based tools through the draft editor. It does not automatically read another manager's files or adopt running workloads. Proprietary backup formats are unsupported. Choose **Portainer** to preview and save a read-only configuration copy of a discovered stack after completing the [optional source-access setup](INSTALL.md#optional-portainer-configuration-import). The preview lists whether associated environment files are included and hides recognized environment values. Only confirm the import after reviewing its warnings. Portainer continues managing the existing containers; imported copies cannot be edited, deployed, or used for container lifecycle actions in Dockspire.
+**Import stack** accepts ordinary Compose/environment files through the draft editor as new drafts with unused project names. It does not automatically adopt running workloads. Proprietary backup formats are unsupported. Choose **Portainer** to preview and save a read-only copy after completing the [optional source-access setup](INSTALL.md#optional-portainer-configuration-import). The preview explains whether environment files are included and masks recognized environment values. Importing alone leaves Portainer and its containers unchanged.
+
+### Portainer takeover
+
+Current source offers **Review takeover** on an imported Portainer copy. Nothing changes until you review the exact targets, type the project name and explicitly acknowledge the handoff. Back up mounted workload data and disable Portainer GitOps, webhooks and all other writers first. Portainer retains its visibility and manual controls; Dockspire cannot revoke its access or enforce a cross-manager lock. Do not delete the Portainer stack to transfer it: deletion may remove the same running workload. Future foreign-manager replacements cause Dockspire operations to be blocked.
+
+Takeover force-recreates the existing services with downtime and loss of container writable-layer changes. It preserves the Compose project, existing container names, immutable image IDs, verified named volumes, networks and absolute host binds. Named resources are recorded as external to avoid recreating them; missing bind sources must not be auto-created. Images stay pinned locally. Ordinary redeploy reuses them; edit an image reference explicitly before requesting a registry upgrade.
+
+The initial supported subset is deliberately narrow: one existing container per service, matching source/configuration hashes, explicit environment values, fixed published ports and ordinary named-volume/absolute-bind networking. Replicas, one-offs, profiles, dependency graphs, builds, inherited environment entries, file attachments, anonymous/image-declared volumes, custom network aliases/addresses, advanced mount options, unused resource declarations, models/providers and the manager's own project are blocked. Missing Portainer-only values or a Compose-version hash mismatch must be resolved without bypassing the check. Unsupported stacks stay unchanged and view-only. Interpolation is accepted only inside service environment values; paths, commands, labels and other fields must be explicit. Literal dollar signs use Compose's $$ escape.
+
+The reviewed source and container/resource identities are checked again before recreation. A private immutable revision and pending intent are saved first. Only verified Dockspire provenance and retained resource identities unlock editing, redeployment, revision restore and lifecycle controls. A failed/interrupted handoff stays locked behind **Review takeover recovery**, accepting only the captured originals or verified Dockspire replacements. Recovery reviews include missing services that will be recreated. Keep the same source mount and authorized environment inputs available for this check. No automatic rollback, orphan removal, stack deletion or volume deletion is performed. Restoring application data from backups remains an operator task.
+
+After every stack you want to retain has completed takeover and is managed by Dockspire, you can remove the Portainer container. Completed stacks use Dockspire's saved revisions for future edits and redeployments; pending recovery still requires the original Portainer source. Keep all workload volumes, networks and bind-mounted data, including any paths inside Portainer's data directory. Do not delete Portainer stacks as a removal method. If you later remove the optional Portainer source mount from Dockspire, do so only after all handoffs are complete; an unchanged bind mount still requires its host path to exist.
 
 ## Starting, stopping and restarting
 

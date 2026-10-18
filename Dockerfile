@@ -8,7 +8,8 @@ COPY cmd ./cmd
 COPY internal ./internal
 COPY web ./web
 COPY licenses ./licenses
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /stacklane ./cmd/dockspire
+ARG VERSION=dev
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X github.com/Mayo-Nas/dockspire/internal/app.Version=${VERSION}" -o /stacklane ./cmd/dockspire
 
 FROM golang:1.27.2@sha256:820153096fda4de6ac1b7194d12e416b7dd8f4e9a33d17e0345b111b945162d8 AS compose
 ENV GOTOOLCHAIN=local GOTELEMETRY=off CGO_ENABLED=0
@@ -23,6 +24,6 @@ COPY --from=build /stacklane /stacklane
 COPY --from=compose /docker-compose /docker-compose
 COPY --from=build /src/licenses /licenses
 LABEL org.opencontainers.image.source="https://github.com/Mayo-Nas/dockspire"
-EXPOSE 9443
+EXPOSE 8787
 ENTRYPOINT ["/stacklane"]
-CMD ["--https", "--setup", "--data-dir", "/appdata"]
+CMD ["--allow-http", "--setup", "--data-dir", "/appdata"]

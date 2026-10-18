@@ -31,6 +31,7 @@ var projectName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,62}$`)
 var portainerFile = regexp.MustCompile(`^/data/compose/([0-9]+)/docker-compose\.ya?ml$`)
 
 type StackRecord struct {
+	Takeover              *TakeoverState     `json:"takeover,omitempty"`
 	Name                  string             `json:"name"`
 	Origin                string             `json:"origin"`
 	CreatedAt             string             `json:"createdAt"`
@@ -81,7 +82,15 @@ func (demoCompose) Run(_ context.Context, _ string, _ string, args ...string) ([
 	return nil, errors.New("Demo mode does not deploy containers")
 }
 func (c commandCompose) Run(ctx context.Context, name, directory string, args ...string) ([]byte, error) {
-	commandArgs := []string{"--project-name", name, "--project-directory", directory, "--env-file", filepath.Join(directory, ".env"), "-f", filepath.Join(directory, "compose.yaml")}
+	environmentFile := filepath.Join(directory, ".env")
+	if _, err := os.Lstat(environmentFile); err != nil {
+		if os.IsNotExist(err) {
+			environmentFile = os.DevNull
+		} else {
+			return nil, errors.New("Cannot inspect the saved environment file")
+		}
+	}
+	commandArgs := []string{"--project-name", name, "--project-directory", directory, "--env-file", environmentFile, "-f", filepath.Join(directory, "compose.yaml")}
 	commandArgs = append(commandArgs, args...)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -141,6 +150,7 @@ type stackLibrary struct {
 	historyKeep          int
 	historyCleanupFailed map[string]bool
 	host                 *hostHelperClient
+	takeoverHostname     func() (string, error)
 }
 
 func newLibrary(root, portainerRoot string, allow bool, source inventorySource, runner ComposeRunner) *stackLibrary {
@@ -182,6 +192,9 @@ func (l *stackLibrary) load(name string) (StackRecord, error) {
 	}
 	if json.Unmarshal(data, &record) != nil || record.Name != name {
 		return record, errors.New("Saved stack metadata is invalid")
+	}
+	if !validTakeover(record.Takeover) || (record.Takeover != nil && (record.Origin != "portainer" || record.LastDeploymentAttempt == nil)) {
+		return StackRecord{}, errors.New("Saved takeover metadata is invalid")
 	}
 	if record.Unavailable || (record.ConfigRevision != "" && !revisionName.MatchString(record.ConfigRevision)) {
 		return StackRecord{}, errors.New("Saved stack metadata is invalid")
@@ -628,7 +641,7 @@ func (l *stackLibrary) importPreview(ctx context.Context, name string) (StackDef
 		}
 		names = append(names, keys...)
 	}
-	warnings = append(warnings, "Import copies configuration only. Portainer remains responsible for the running stack until an explicit takeover is implemented")
+	warnings = append(warnings, "Import copies configuration only. Portainer remains responsible until a separate takeover review is explicitly confirmed and completes successfully")
 	warnings = append(warnings, "Only this Compose file and authorized .env / stack.env files are copied. Other referenced files need review")
 	if len(files) == 0 {
 		warnings = append(warnings, "No environment files were copied. Values stored only in Portainer's database are not imported")

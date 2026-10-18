@@ -50,14 +50,16 @@ type Container struct {
 	ComposeOneOff    string   `json:"-"`
 }
 type Stack struct {
-	Name       string `json:"name"`
-	Containers int    `json:"containers"`
-	Running    int    `json:"running"`
-	State      string `json:"state"`
-	Source     string `json:"source"`
-	Definition string `json:"definition"`
-	Origin     string `json:"origin,omitempty"`
-	ImportID   string `json:"importId,omitempty"`
+	Managed        bool   `json:"managed"`
+	TakeoverStatus string `json:"takeoverStatus,omitempty"`
+	Name           string `json:"name"`
+	Containers     int    `json:"containers"`
+	Running        int    `json:"running"`
+	State          string `json:"state"`
+	Source         string `json:"source"`
+	Definition     string `json:"definition"`
+	Origin         string `json:"origin,omitempty"`
+	ImportID       string `json:"importId,omitempty"`
 }
 type Image struct {
 	ID   string   `json:"id"`

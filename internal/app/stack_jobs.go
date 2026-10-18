@@ -13,6 +13,8 @@ import (
 )
 
 type UpdatePlan struct {
+	takeover      *TakeoverState
+	takeoverFiles map[string]string
 	ID            string              `json:"id"`
 	Name          string              `json:"name"`
 	Kind          string              `json:"kind"`
@@ -59,6 +61,9 @@ func (record StackRecord) hasDeployment() bool {
 }
 
 func (l *stackLibrary) needsRecovery(record StackRecord) bool {
+	if record.Takeover != nil && record.Takeover.State == "pending" {
+		return true
+	}
 	if record.LastDeploymentAttempt == nil {
 		return false
 	}
@@ -98,8 +103,8 @@ func (l *stackLibrary) buildPlan(ctx context.Context, name, containerID string) 
 	if err != nil {
 		return UpdatePlan{}, err
 	}
-	if record.Origin != "new" {
-		return UpdatePlan{}, errors.New("Portainer stacks are view-only while migration is disabled")
+	if !record.managed() {
+		return UpdatePlan{}, errors.New("Imported copies require an explicitly confirmed, verified takeover before normal deployment")
 	}
 	revision, err := l.contentFingerprint(record)
 	if err != nil {
@@ -184,7 +189,7 @@ func (l *stackLibrary) reviewAction(ctx context.Context, name, containerID, acti
 	if err != nil {
 		return plan, err
 	}
-	if !isLifecycle(plan.Kind) {
+	if !isLifecycle(plan.Kind) && plan.Kind != "takeover" {
 		plan.Comparison, err = l.comparisonForPlan(plan)
 		if err != nil {
 			return plan, err
@@ -221,6 +226,7 @@ func (l *stackLibrary) reviewAction(ctx context.Context, name, containerID, acti
 	stored := plan
 	stored.Comparison = nil // Display-only data must not inflate the review cache.
 	stored.imageBefore = nil
+	stored.takeover, stored.takeoverFiles = nil, nil
 	l.plans[plan.ID] = stored
 	return plan, nil
 }
@@ -266,7 +272,7 @@ func (l *stackLibrary) setJob(id, status, stage, message string) error {
 	}
 	return err
 }
-func (l *stackLibrary) startJob(ctx context.Context, name, planID, confirmation string) (StackJob, error) {
+func (l *stackLibrary) startJob(ctx context.Context, name, planID, confirmation string, portainerWritersDisabled ...bool) (StackJob, error) {
 	if _, demo := l.runner.(demoCompose); demo {
 		return StackJob{}, errors.New("Container operations are disabled in demo mode")
 	}
@@ -280,6 +286,9 @@ func (l *stackLibrary) startJob(ctx context.Context, name, planID, confirmation 
 			l.releaseOperation(name, id)
 		}
 	}()
+	if plan.Kind == "takeover" && (len(portainerWritersDisabled) != 1 || !portainerWritersDisabled[0]) {
+		return StackJob{}, errors.New("Confirm that Portainer automation, webhooks and other writers are disabled before takeover")
+	}
 	if err := l.host.available(ctx); err != nil {
 		return StackJob{}, err
 	}
@@ -320,6 +329,9 @@ func (l *stackLibrary) startJob(ctx context.Context, name, planID, confirmation 
 	delete(l.plans, planID)
 	l.jobsMu.Unlock()
 	accepted = true
+	if plan.Kind == "takeover" {
+		plan = current
+	}
 	go l.runJob(job, plan)
 	return job, nil
 }
@@ -327,6 +339,10 @@ func (l *stackLibrary) runJob(job StackJob, plan UpdatePlan) {
 	defer l.releaseOperation(job.Name, job.ID)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
+	if plan.Kind == "takeover" {
+		l.runTakeover(ctx, job, plan)
+		return
+	}
 	if isLifecycle(plan.Kind) {
 		l.runLifecycle(ctx, job, plan)
 		return
@@ -367,7 +383,26 @@ func (l *stackLibrary) runJob(job StackJob, plan UpdatePlan) {
 	if plan.Service != "" {
 		args = append(args, plan.Service)
 	}
-	if _, err = l.runCompose(ctx, job.Name, dir, args...); err != nil {
+	// Local immutable image IDs cannot be pulled from a registry. A later
+	// explicit tag edit resumes normal pulls for that service.
+	pullServices := []string{}
+	hasLocalPins := false
+	for _, service := range plan.Services {
+		if plan.Service == "" || service.Name == plan.Service {
+			if strings.HasPrefix(service.Image, "sha256:") && revisionName.MatchString(strings.TrimPrefix(service.Image, "sha256:")) {
+				hasLocalPins = true
+			} else {
+				pullServices = append(pullServices, service.Name)
+			}
+		}
+	}
+	if len(pullServices) > 0 {
+		if hasLocalPins {
+			args = append([]string{"pull", "--policy", policy}, pullServices...)
+		}
+		_, err = l.runCompose(ctx, job.Name, dir, args...)
+	}
+	if err != nil {
 		fail("Image pull failed. Existing containers were not recreated. Check the image tag, registry access, and connectivity.")
 		return
 	}

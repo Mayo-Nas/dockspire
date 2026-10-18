@@ -16,7 +16,7 @@ async function setupStatus() {
     const response = await fetch('/api/auth/setup', { cache: 'no-store', credentials: 'same-origin', signal: AbortSignal.timeout(10000) });
     if (!response.ok) throw new Error('Could not check setup. Reload the page to retry.');
     const status = await response.json();
-    if (!status.required) { location.replace('/login'); return; }
+    if (!status.required) { location.replace('/'); return; }
     if (status.expired) throw new Error('Setup timed out. Restart Dockspire to open a new five-minute setup window.');
     ready = true;
     submit.disabled = false;
@@ -37,19 +37,18 @@ form.addEventListener('submit', async event => {
     const response = await fetch('/api/auth/setup', {
       method: 'POST', cache: 'no-store', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: document.getElementById('setup-token').value, password: password.value, confirmation: confirmation.value }),
+      body: JSON.stringify({ password: password.value, confirmation: confirmation.value }),
       signal: AbortSignal.timeout(25000),
     });
     const result = await response.json();
     if (!response.ok) {
-      if (response.status === 409) { location.replace('/login'); return; }
+      if (response.status === 409) { location.replace('/'); return; }
       if (response.status === 403) ready = false;
       throw new Error(result.error || 'Could not create administrator.');
     }
     password.value = '';
     confirmation.value = '';
-    document.getElementById('setup-token').value = '';
-    location.replace('/login');
+    location.replace(result.passwordless ? '/' : '/login');
   } catch (error) {
     showError(error.name === 'TimeoutError' ? 'Setup request timed out. Reload to check whether setup completed.' : error.message);
   } finally {

@@ -11,16 +11,26 @@ It runs as one small application container with an embedded browser interface an
 
 ## Install on a Linux VM
 
-The recommended installation uses a **versioned container image and Docker Compose**, with administrator setup in your browser and direct HTTPS. The image bundles the application and its Compose executable. The VM needs Docker Engine and the Compose plugin to launch it; no Go, Node or source build is required.
+**Current source uses HTTP on port 8787 and browser administrator setup without a setup token.** This behavior is not in published v0.1.0; build the checkout to use it. Docker Engine and its Compose plugin are required; host Go and Node are unnecessary.
 
-1. Install Docker Engine and the Compose plugin using your distribution's supported Docker packages.
-2. Download the release's [Compose configuration](deploy/compose.yaml) and select the published image version.
-3. Run `docker compose up -d`, then open `https://VM-IP:9443` (choose another host port if Portainer already uses 9443).
-4. Verify the certificate fingerprint through a trusted VM console/SSH session as described in the installation guide. Then copy the one-time setup token from `docker compose logs app`, create the administrator within five minutes, and sign in. Trusted custom certificates are also supported.
+On a fresh Linux amd64 host without an existing Dockspire installation or `dockspire_data` volume:
 
-Source is available in [Mayo-Nas/dockspire](https://github.com/Mayo-Nas/dockspire). Registry installation requires an existing published image version; example tags in the documentation are placeholders. See [Linux installation and upgrades](docs/INSTALL.md) for complete commands, private-registry access, certificates, persistent storage and rollback, or [build the container from source](docs/DEVELOPMENT.md#container-build-and-checks).
+```sh
+gh repo clone Mayo-Nas/dockspire
+cd dockspire
+docker build -t dockspire:local .
+cd deploy
+export DOCKSPIRE_IMAGE=dockspire:local
+docker compose up -d --pull never
+```
 
-Docker packages remain managed by the host. Dockspire does not install or upgrade them automatically. The optional [Portainer import setup](docs/INSTALL.md#optional-portainer-configuration-import) enables previewing and saving read-only configuration copies. Portainer continues managing those workloads; Dockspire does not take them over.
+Use an authenticated GitHub CLI account with repository access. If already cloned, start at `docker build` from the repository root. Keep Compose commands in `deploy/` and repeat the image export after reconnecting. Open `http://VM-IP:8787` and create the `admin` password within five minutes. Portainer can continue using 9443 alongside Dockspire.
+
+HTTP carries passwords and sessions without encryption. Use a trusted management network: any reachable client can claim first administrator during the setup window. Choose any password, or explicitly leave both fields blank for persistent passwordless access: anyone who can reach Dockspire can then control this Docker host without signing in. Optional HTTPS and a pinned DNS origin remain available in the installation guide. No certificate fingerprint or log token is needed for HTTP setup.
+
+The Compose file requires an explicit `DOCKSPIRE_IMAGE` (the source commands select `dockspire:local`). For `.env` configuration, optional HTTPS, persistence, or the existing published v0.1.0 HTTPS installation, see [installation and upgrades](docs/INSTALL.md). Existing running deployments are unchanged by this source update.
+
+Docker packages remain managed by the host. Dockspire does not install or upgrade them automatically. The optional [Portainer import setup](docs/INSTALL.md#optional-portainer-configuration-import) saves configuration copies without changing workloads. Current source also offers a separate, explicitly confirmed [takeover review](docs/OPERATIONS.md#portainer-takeover) for supported self-contained stacks; importing alone never transfers management. This is unreleased functionality, unavailable in v0.1.0.
 
 ## Repository layout
 

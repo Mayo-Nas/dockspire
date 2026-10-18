@@ -66,8 +66,9 @@ jobs:
         run: |
           set -euo pipefail
           image="ghcr.io/${GITHUB_REPOSITORY,,}:$RELEASE_VERSION"
-          docker build --platform linux/amd64 --label "org.opencontainers.image.version=$RELEASE_VERSION" --label "org.opencontainers.image.revision=$(git rev-parse HEAD)" -t "$image" .
-          bash tests/test-container.sh "$image"
+          docker build --platform linux/amd64 --build-arg VERSION="$RELEASE_VERSION" --label "org.opencontainers.image.version=$RELEASE_VERSION" --label "org.opencontainers.image.revision=$(git rev-parse HEAD)" -t "$image" .
+          bash tests/test-container.sh "$image" "$RELEASE_VERSION"
+          DOCKSPIRE_TAKEOVER_TEST=1 DOCKSPIRE_TEST_IMAGE="$(docker image inspect --format '{{.Id}}' "$image")" go test ./internal/app -run '^TestTakeoverDockerIntegration$' -count=1 -timeout=5m
           go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
           bash scripts/check-image-security.sh "$image" "$(go env GOPATH)/bin/govulncheck"
 

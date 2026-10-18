@@ -349,6 +349,9 @@ func validateArchiveLibraryContext(ctx context.Context, l *stackLibrary) error {
 		if record.AppliedRevision != "" && !revisions[record.AppliedRevision] {
 			return errors.New("Applied configuration is missing")
 		}
+		if record.Takeover != nil && !revisions[record.Takeover.Revision] {
+			return errors.New("Takeover configuration is missing")
+		}
 		if record.LastDeploymentAttempt != nil && !revisions[record.LastDeploymentAttempt.Revision] {
 			return errors.New("Recovery configuration is missing")
 		}

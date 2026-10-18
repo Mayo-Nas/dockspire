@@ -1,7 +1,7 @@
 # Optional source-copy access; combine with the primary compose.yaml.
 services:
   app:
-    command: ["--https", "--setup", "--data-dir", "/appdata", "--tls-hosts", "${DOCKSPIRE_TLS_HOSTS:-}", "--external-url", "${DOCKSPIRE_EXTERNAL_URL:-}", "--portainer-root", "/portainer/compose", "--allow-portainer-import", "--import-environment=${DOCKSPIRE_IMPORT_ENVIRONMENT:-false}"]
+    command: ["--allow-http", "--setup", "--data-dir", "/appdata", "--external-url", "${DOCKSPIRE_EXTERNAL_URL:-}", "--portainer-root", "/portainer/compose", "--allow-portainer-import", "--import-environment=${DOCKSPIRE_IMPORT_ENVIRONMENT:-false}"]
     volumes:
       - type: bind
         source: ${DOCKSPIRE_PORTAINER_COMPOSE_DIR:?Set the authorized host path to Portainer's compose directory}
