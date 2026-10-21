@@ -1,8 +1,19 @@
 # Dockspire branding
 
+<img src="../web/brand/dockspire-icon-256.png" alt="Dockspire transparent mark" width="96">
+
 The owner-supplied `Dockspire_Fresh_Brand_Pack` provides the current **Dockspire** artwork. The approved direction is the flat orbital docking station: central blue-and-white spire, segmented docking ring, and spacecraft approaching from the left. The tagline is **DOCK. DEPLOY. MANAGE.**
 
 The [asset status](branding/ASSET_LICENSE_NOTES.md) records the supplied artwork’s provenance and limitations. Runtime images are copied directly from the pack without tracing, recoloring, or modifying the motif.
+
+## Final artwork
+
+| Artwork | Supplied asset | Repository preview | Native dimensions | Use |
+| --- | --- | --- | --- | --- |
+| Transparent mark | `marks/dockspire-mark-transparent.png` | [View mark](../web/brand/dockspire-icon-256.png) | 1254 × 1254 | Sidebar, sign-in, browser/touch icon and documentation; light or dark surfaces |
+| Primary horizontal logo | `logos/dockspire-logo-horizontal-primary.png` | [View horizontal logo](../web/brand/dockspire-horizontal-dark.png) | 2172 × 724 | Administrator setup on a light card; navy lettering needs a light surface |
+
+Both repository assets retain the supplied PNG bytes, transparency and native dimensions. The legacy `icon-256` and `horizontal-dark` filenames are compatibility paths rather than size or background guidance. Render them proportionally at the sizes described below. The mark above keeps documentation readable in light and dark themes; the horizontal logo is linked for use on light surfaces.
 
 ## Application use
 

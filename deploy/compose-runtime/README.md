@@ -1,6 +1,6 @@
 # Bundled Compose build
 
-This isolated build manifest compiles upstream Docker Compose v5.6.0 with Go 1.27.2 and golang.org/x/net v0.60.0. It does not add these dependencies to the Dockspire application module. Module source and dependency checksums are recorded in go.sum; the Docker builder is pinned by digest and refuses an unexpected Go version.
+This isolated build manifest compiles upstream Docker Compose v5.6.0 with Go 1.27.3 and golang.org/x/net v0.60.0. It does not add these dependencies to the Dockspire application module. Module source and dependency checksums are recorded in go.sum; the Docker builder is pinned by digest and refuses an unexpected Go version.
 
 The patched executable identifies itself as `v5.6.0-dockspire.1`. Upstream source is unchanged; the build uses the dependency overrides here to replace the older Go/networking components in the upstream precompiled artifact. Keep the symbol table (`-w`, without `-s`) so binary vulnerability scanning can distinguish linked packages from unused packages in dependency modules. Builds use `-trimpath` to omit workstation paths.
 

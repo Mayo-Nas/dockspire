@@ -1,14 +1,16 @@
 # Dockspire
 
-`main` contains the complete maintained source, tests, CI and release tooling. Installation uses a minimal runtime image; contributor files are not shipped in that image.
-
 <img src="web/brand/dockspire-icon-256.png" alt="Dockspire mark" width="96">
 
 Dock. Deploy. Manage.
 
+[Final branding assets and usage](docs/BRANDING.md) · [Transparent mark](web/brand/dockspire-icon-256.png) · [Horizontal logo for light surfaces](web/brand/dockspire-horizontal-dark.png)
+
 Docker and Compose management for self-hosted Linux servers. Dockspire provides live inventory, container diagnostics, a saved Compose stack library, reviewed deployments and updates, configuration history, and portable backups.
 
 It runs as one small application container with an embedded browser interface and one persistent data directory. Multi-host management is planned. The implementation is original; no Portainer source is included.
+
+The current source interface uses the transparent mark in the sidebar and sign-in screen, the supplied horizontal logo on a light administrator setup card, and labeled Lucide navigation icons.
 
 ## Install on a Linux VM
 
@@ -51,12 +53,16 @@ The backend remains one internal application package. Feature files stay togethe
 
 ## Contribute
 
-Create a short-lived feature branch from `main`, open a pull request to `main`, and run the documented checks before merging. Tests, contributor tools and release workflows stay alongside the application source. The legacy `development` branch has been removed; use short-lived branches and pull requests to `main`.
+`main` contains the complete maintained source, tests, CI and release tooling. Installation uses a minimal runtime image; contributor files are not shipped in that image.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), [development and checks](docs/DEVELOPMENT.md), and [repository and release policy](docs/GITHUB.md). Native source builds require Go 1.27.2; Node 24 runs browser regression tests. Published-image installation requires no host Go or Node; optional source builds run in Docker. Detailed application workflows and access/backup behavior are in the [operations manual](docs/OPERATIONS.md).
+Create a short-lived feature branch from `main`, open a pull request to `main`, and run the documented checks before merging. The legacy `development` branch has been removed; use short-lived branches and pull requests to `main`.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md), [development and checks](docs/DEVELOPMENT.md), and [repository and release policy](docs/GITHUB.md). Native source builds require Go 1.27.3; Node 24 runs browser regression tests. Published-image installation requires no host Go or Node; optional source builds run in Docker. Detailed application workflows and access/backup behavior are in the [operations manual](docs/OPERATIONS.md).
 
 ## Project status
 
 The supported release target is Linux amd64 with Docker Engine and modern Compose. The application and installation workflow are covered by Go, UI and disposable-container tests. Other architectures have not been runtime-verified.
 
-The canonical repository is [Mayo-Nas/dockspire](https://github.com/Mayo-Nas/dockspire). [Repository and publication guidance](docs/GITHUB.md) covers source/privacy review and image releases. Dockspire's own source license remains undecided; files under `licenses/` cover YAML and bundled Docker Compose, and branding retains its supplied [asset notes](docs/branding/ASSET_LICENSE_NOTES.md).
+The branding and Go 1.27.3 build configuration described here reflect current source. These source changes do not rebuild or replace the published v0.1.1 image. Installation instructions continue to use that release; a new reviewed image requires a separate release.
+
+The canonical repository is [Mayo-Nas/dockspire](https://github.com/Mayo-Nas/dockspire). [Repository and publication guidance](docs/GITHUB.md) covers source/privacy review and image releases. Dockspire's own source license remains undecided; files under `licenses/` retain Go, YAML, bundled Docker Compose and Lucide/Feather notices, and branding retains its supplied [asset notes](docs/branding/ASSET_LICENSE_NOTES.md).
