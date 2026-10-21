@@ -1,22 +1,24 @@
 # Install Dockspire on a Linux VM
 
-v0.1.1 defaults to HTTP on 8787 with tokenless first-administrator setup. It needs Docker Engine and the modern Compose plugin, not host Go/Node. Only Linux amd64 is supported. Existing v0.1.0 installations keep their HTTPS 9443 configuration and data unchanged; read [upgrade and rollback](#upgrade-and-rollback) before changing an existing installation.
+v0.1.2 defaults to HTTP on 8787 with tokenless first-administrator setup. It needs Docker Engine and the modern Compose plugin, not host Go/Node. Only Linux amd64 is supported. Existing v0.1.0 installations keep their HTTPS 9443 configuration and data unchanged; read [upgrade and rollback](#upgrade-and-rollback) before changing an existing installation.
 
-## Install the published v0.1.1 image
+## Install v0.1.2
+
+Use these commands once the [v0.1.2 release notes](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.1.2) record the verified private image and immutable digest. Preparing source or a tag does not publish the image. v0.1.2 refreshes branding and uses Go 1.27.3 for the application and bundled Compose; installation, access and saved-data formats are unchanged from v0.1.1.
 
 Use a fresh Linux amd64 host without an existing Dockspire installation or `dockspire_data` volume. The matching template fixes project `dockspire` and volume `dockspire_data`; another checkout does not isolate an existing installation. HTTP exposes passwords and sessions without encryption, and any reachable client can claim first administrator while setup is open. Restrict access to a trusted management network.
 
 The repository and GHCR image are private. Use an authenticated GitHub CLI account with repository access. Registry pulls require package access and a token with `read:packages`; run `docker login ghcr.io --username YOUR_GITHUB_USER` and enter that token at its password prompt. Keep tokens out of commands, Compose files and chat. See [GitHub registry authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 
 ```sh
-gh repo clone Mayo-Nas/dockspire -- --branch v0.1.1
+gh repo clone Mayo-Nas/dockspire -- --branch v0.1.2
 cd dockspire/deploy
-export DOCKSPIRE_IMAGE=ghcr.io/mayo-nas/dockspire:v0.1.1
+export DOCKSPIRE_IMAGE=ghcr.io/mayo-nas/dockspire:v0.1.2
 docker compose pull app
 docker compose up -d --no-deps app
 ```
 
-Keep Compose commands in `deploy/`. Repeat the image export after reconnecting, or manually save `DOCKSPIRE_IMAGE=ghcr.io/mayo-nas/dockspire:v0.1.1` in a private `.env` beside `compose.yaml`; a shell export takes precedence. The [release notes](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.1.1) record the immutable digest, validation and limitations. To pin it, select the complete `ghcr.io/mayo-nas/dockspire@sha256:...` reference from those notes instead of the version tag. Do not overwrite an existing deployment's files or data. Continue with [administrator setup](#create-the-administrator) and optional HTTPS below. Publishing an image does not upgrade a running installation.
+Keep Compose commands in `deploy/`. Repeat the image export after reconnecting, or manually save `DOCKSPIRE_IMAGE=ghcr.io/mayo-nas/dockspire:v0.1.2` in a private `.env` beside `compose.yaml`; a shell export takes precedence. The [release notes](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.1.2) record the immutable digest, validation and limitations. To pin it, select the complete `ghcr.io/mayo-nas/dockspire@sha256:...` reference from those notes instead of the version tag. Do not overwrite an existing deployment's files or data. Continue with [administrator setup](#create-the-administrator) and optional HTTPS below. Publishing an image does not upgrade a running installation.
 
 ## Build and start the current source
 
@@ -73,6 +75,10 @@ Generated self-signed TLS identities persist; existing identities are not silent
 
 An existing TLS reverse proxy can use the native HTTP listener with `--listen 0.0.0.0:8787 --setup --data-dir /appdata --external-url https://docker.example.test` (without `--allow-http`). Restrict that backend to loopback/a private proxy network and preserve Host. Secure browser cookies follow the pinned HTTPS origin; forwarded headers never authorize another origin. `--allow-http` requires an HTTP external URL; direct `--https` requires HTTPS.
 
+## v0.1.1 compatibility
+
+Existing v0.1.1 installations use the same HTTP setup, Compose project and persistent volume as v0.1.2. Keep their deployed files, overrides, administrator and data; follow [upgrade and rollback](#upgrade-and-rollback) to select the new image deliberately. The historical [v0.1.1 release](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.1.1) and its tagged files remain available. v0.1.2 adds no storage migration.
+
 ## Published v0.1.0 compatibility
 
 The existing private image `ghcr.io/mayo-nas/dockspire:v0.1.0` uses HTTPS 9443 and the old setup-token flow. It does not recognize `--allow-http`. Use its [tagged Compose file](https://github.com/Mayo-Nas/dockspire/blob/v0.1.0/deploy/compose.yaml) and [matching TLS/setup guide](https://github.com/Mayo-Nas/dockspire/blob/v0.1.0/docs/INSTALL.md), never the current HTTP template. Manually set `DOCKSPIRE_IMAGE=ghcr.io/mayo-nas/dockspire:v0.1.0` in `.env` beside that downloaded file.
@@ -93,7 +99,7 @@ Portainer file import is available without a direct source connection: choose **
 
 Use matching checkout files in deploy/. Its Portainer override supplies the HTTP command. If optional HTTPS is also enabled, merge the command lists with the TLS settings above; the last command override replaces earlier lists rather than appending.
 
-Dockspire can preview and save configuration copies from supported Portainer Docker Compose stacks on the same Docker host. Importing does not stop Portainer, adopt workloads, edit its source files, or deploy containers. Copies stay read-only until a separate [takeover review](OPERATIONS.md#portainer-takeover) is explicitly confirmed and completes. No Portainer API token, database access, or full Portainer data-volume mount is needed. Takeover is included in v0.1.1; it is unavailable in the v0.1.0 image.
+Dockspire can preview and save configuration copies from supported Portainer Docker Compose stacks on the same Docker host. Importing does not stop Portainer, adopt workloads, edit its source files, or deploy containers. Copies stay read-only until a separate [takeover review](OPERATIONS.md#portainer-takeover) is explicitly confirmed and completes. No Portainer API token, database access, or full Portainer data-volume mount is needed. Takeover is included since v0.1.1; it is unavailable in the v0.1.0 image.
 
 Download `deploy/compose.portainer.yaml` from the same release/commit as the primary Compose file, saving it beside `compose.yaml` as `compose.portainer.yaml`. Enable it only when authorized to read those stack definitions, which can contain secrets even without associated environment files. In your private local `.env`, set:
 
@@ -120,6 +126,8 @@ After signing in, choose **Stacks → Import stack → Portainer**. Select a dis
 Only the supported Compose and explicitly authorized environment files are copied. Portainer database files, separate key files, arbitrary attachments and workload data are excluded. The copied Compose text and environment files can contain workload credentials or keys. Keep the library and exported archives private. Removing the override and restarting `app` with the base file disables further Portainer reads; previously saved copies remain in the library. Pending takeover recovery still needs the same authorized source bundle to verify its fingerprint; keep that read-only source available until the handoff finishes.
 
 ## Upgrade and rollback
+
+When selecting an image in a private `.env`, first run `unset DOCKSPIRE_IMAGE` in that shell so a stale export cannot override it. Alternatively, export the exact selected version or digest for every upgrade and rollback command. Record the effective reference before pulling or recreating `app`.
 
 Existing v0.1.0 deployments retain HTTPS on 9443 and matching tagged configuration; replacing the deployed template is an explicit listener change. Preserve the existing project/data volume/administrator and back up before upgrading.
 
