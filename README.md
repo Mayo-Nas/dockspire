@@ -12,15 +12,15 @@ The current source interface uses the transparent mark in the sidebar and sign-i
 
 ## Install on a Linux VM
 
-**v0.1.1 uses HTTP on port 8787 and browser administrator setup without a setup token.** Docker Engine and its Compose plugin are required; host Go and Node are unnecessary. The repository and image are private: use an authenticated GitHub CLI account with repository access, and authenticate Docker to GHCR with package access as described in [installation](docs/INSTALL.md#install-the-published-v011-image).
+**v0.1.2 uses HTTP on port 8787 and browser administrator setup without a setup token.** Docker Engine and its Compose plugin are required; host Go and Node are unnecessary. The repository and image are private: use an authenticated GitHub CLI account with repository access, and authenticate Docker to GHCR with package access as described in [installation](docs/INSTALL.md#install-v012).
 
 On a fresh Linux amd64 host without an existing Dockspire installation or `dockspire_data` volume:
 
 ```sh
-gh repo clone Mayo-Nas/dockspire -- --branch v0.1.1
+gh repo clone Mayo-Nas/dockspire -- --branch v0.1.2
 cd dockspire
 cd deploy
-export DOCKSPIRE_IMAGE=ghcr.io/mayo-nas/dockspire:v0.1.1
+export DOCKSPIRE_IMAGE=ghcr.io/mayo-nas/dockspire:v0.1.2
 docker compose pull app
 docker compose up -d --no-deps app
 ```
@@ -29,9 +29,9 @@ Use the matching tagged files for a fresh installation; existing installations m
 
 HTTP carries passwords and sessions without encryption. Use a trusted management network: any reachable client can claim first administrator during the setup window. Choose any password, or explicitly leave both fields blank for persistent passwordless access: anyone who can reach Dockspire can then control this Docker host without signing in. Optional HTTPS and a pinned DNS origin remain available in the installation guide. No certificate fingerprint or log token is needed for HTTP setup.
 
-The Compose file requires an explicit `DOCKSPIRE_IMAGE`. For an immutable image reference, `.env` configuration, source builds, optional HTTPS, persistence, or v0.1.0 compatibility, see [installation and upgrades](docs/INSTALL.md) and the [v0.1.1 release notes](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.1.1). Publishing a release does not update existing running deployments.
+The Compose file requires an explicit `DOCKSPIRE_IMAGE`. For an immutable image reference, `.env` configuration, source builds, optional HTTPS, persistence, or v0.1.0 compatibility, see [installation and upgrades](docs/INSTALL.md) and the [v0.1.2 release notes](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.1.2). Publishing a release does not update existing running deployments.
 
-Docker packages remain managed by the host. Dockspire does not install or upgrade them automatically. The optional [Portainer import setup](docs/INSTALL.md#optional-portainer-configuration-import) saves configuration copies without changing workloads. v0.1.1 also offers a separate, explicitly confirmed [takeover review](docs/OPERATIONS.md#portainer-takeover) for supported self-contained stacks; importing alone never transfers management. Takeover is unavailable in v0.1.0.
+Docker packages remain managed by the host. Dockspire does not install or upgrade them automatically. The optional [Portainer import setup](docs/INSTALL.md#optional-portainer-configuration-import) saves configuration copies without changing workloads. v0.1.1 and later offer a separate, explicitly confirmed [takeover review](docs/OPERATIONS.md#portainer-takeover) for supported self-contained stacks; importing alone never transfers management. Takeover is unavailable in v0.1.0.
 
 ## Repository layout
 
@@ -61,6 +61,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md), [development and checks](docs/DEVELOPMEN
 
 The supported release target is Linux amd64 with Docker Engine and modern Compose. The application and installation workflow are covered by Go, UI and disposable-container tests. Other architectures have not been runtime-verified.
 
-The branding and Go 1.27.3 build configuration described here reflect current source. These source changes do not rebuild or replace the published v0.1.1 image. Installation instructions continue to use that release; a new reviewed image requires a separate release.
+v0.1.2 is the branding and security maintenance release: refreshed supplied artwork, consistent navigation icons and a Go 1.27.3 build toolchain. Before using the versioned installation commands above, confirm its release notes record the verified private image and immutable digest. Source changes and version tags alone do not publish images or update running installations.
 
 The canonical repository is [Mayo-Nas/dockspire](https://github.com/Mayo-Nas/dockspire). [Repository and publication guidance](docs/GITHUB.md) covers source/privacy review and image releases. Dockspire's own source license remains undecided; files under `licenses/` retain Go, YAML, bundled Docker Compose and Lucide/Feather notices, and branding retains its supplied [asset notes](docs/branding/ASSET_LICENSE_NOTES.md).

@@ -83,6 +83,19 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
           bash scripts/check-image-security.sh "$image" "$(go env GOPATH)/bin/govulncheck"
 
+      - name: Pull verified private upgrade baseline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/pull-upgrade-baseline.sh
+
+      - name: Verify disposable upgrade and rollback without registry credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          previous=$(docker image inspect --format '{{.Id}}' ghcr.io/mayo-nas/dockspire@sha256:4fd7ba7c829c48087d6f76883d7c553c33a4e46737d44583580d5716b2b4303c)
+          candidate=$(docker image inspect --format '{{.Id}}' "ghcr.io/${GITHUB_REPOSITORY,,}:$RELEASE_VERSION")
+          bash tests/test-upgrade.sh "$previous" "$candidate" "$RELEASE_VERSION"
+
       - name: Publish the verified version
         id: publish
         shell: bash

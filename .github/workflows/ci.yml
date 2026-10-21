@@ -109,3 +109,30 @@ jobs:
           set -eu
           go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
           bash scripts/check-image-security.sh dockspire:ci "$(go env GOPATH)/bin/govulncheck"
+
+  upgrade:
+    name: Check private release upgrade and rollback
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Check out trusted main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build upgrade candidate
+        run: docker build --platform linux/amd64 -t dockspire:upgrade .
+      - name: Pull verified private upgrade baseline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/pull-upgrade-baseline.sh
+      - name: Verify disposable upgrade and rollback without registry credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          previous=$(docker image inspect --format '{{.Id}}' ghcr.io/mayo-nas/dockspire@sha256:4fd7ba7c829c48087d6f76883d7c553c33a4e46737d44583580d5716b2b4303c)
+          candidate=$(docker image inspect --format '{{.Id}}' dockspire:upgrade)
+          bash tests/test-upgrade.sh "$previous" "$candidate" dev
