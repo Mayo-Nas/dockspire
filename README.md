@@ -1,8 +1,6 @@
 # Dockspire
 
-<img src="web/brand/dockspire-icon-256.png" alt="Dockspire mark" width="96">
-
-Dock. Deploy. Manage.
+<a href="web/brand/dockspire-horizontal-dark.png"><img src="web/brand/dockspire-horizontal-dark.png" alt="Dockspire — Dock. Deploy. Manage." width="800"></a>
 
 [Final branding assets and usage](docs/BRANDING.md) · [Transparent mark](web/brand/dockspire-icon-256.png) · [Horizontal logo for light surfaces](web/brand/dockspire-horizontal-dark.png)
 

@@ -11,7 +11,7 @@ The [asset status](branding/ASSET_LICENSE_NOTES.md) records the supplied artwork
 | Artwork | Supplied asset | Repository preview | Native dimensions | Use |
 | --- | --- | --- | --- | --- |
 | Transparent mark | `marks/dockspire-mark-transparent.png` | [View mark](../web/brand/dockspire-icon-256.png) | 1254 × 1254 | Sidebar, sign-in, browser/touch icon and documentation; light or dark surfaces |
-| Primary horizontal logo | `logos/dockspire-logo-horizontal-primary.png` | [View horizontal logo](../web/brand/dockspire-horizontal-dark.png) | 2172 × 724 | Administrator setup on a light card; navy lettering needs a light surface |
+| Primary horizontal logo | `logos/dockspire-logo-horizontal-primary.png` | [View horizontal logo](../web/brand/dockspire-horizontal-dark.png) | 2172 × 724 | Administrator setup on a light card and full README header; navy lettering needs a light surface |
 
 Both repository assets retain the supplied PNG bytes, transparency and native dimensions. The legacy `icon-256` and `horizontal-dark` filenames are compatibility paths rather than size or background guidance. Render them proportionally at the sizes described below. The mark above keeps documentation readable in light and dark themes; the horizontal logo is linked for use on light surfaces.
 
@@ -22,7 +22,7 @@ Both repository assets retain the supplied PNG bytes, transparency and native di
 - Administrator setup: the exact supplied 2172 × 724 primary horizontal logo on a light setup card, with no separate logo plate or background. Fields, help, errors and keyboard focus use matching light-card colors.
 - Sidebar and sign-in use a responsive HTML wordmark: `Dock` is white and `spire` is blue, with the existing system font because the package includes no font files. The wordmark remains visible on narrow screens.
 - Browser and touch icon: the same transparent PNG, explicitly referenced as PNG rather than ICO.
-- README: transparent mark with a theme-native heading and tagline.
+- README: full supplied horizontal logo, including the name and tagline, displayed up to 800 px wide and linked to the native 2172 × 724 PNG. Navy lettering is intended for light surfaces and can have reduced contrast in dark documentation themes.
 
 The original 1254 × 1254 `marks/dockspire-mark-transparent.png` is copied without image processing to the compatibility path `web/brand/dockspire-icon-256.png`. Its legacy filename does not describe its native dimensions. Sidebar, sign-in and browser icons use this mark directly without an opaque tile source or high-density tile override. Setup uses the unmodified horizontal primary logo at the compatibility path web/brand/dockspire-horizontal-dark.png; its navy text remains readable on the light card.
 
