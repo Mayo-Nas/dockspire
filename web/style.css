@@ -109,3 +109,49 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .system-card table { margin: 16px 0; }
 @media (max-width: 760px) { .system-checks { grid-template-columns: 1fr; } }
 @media (max-width: 900px) { .heading-row { align-items: flex-start; } .heading-actions { max-width: 240px; } #stack-actions { display: flex; gap: 8px; flex-wrap: wrap; } }
+
+/* Use the supplied transparent mark without clipping or a backing tile. */
+.brand-mark { border-radius: 0; object-fit: contain; }
+.brand small { font-size: 9px; letter-spacing: .7px; }
+.nav-label { color: var(--muted); }
+.connection-dot { background: var(--muted); }
+.button { min-height: 40px; }
+.cell-secondary, .badge, .host-row dt, .page-footer { font-size: 11px; }
+.login-card .brand { gap: 14px; }
+.login-card .brand-mark { width: 56px; height: 56px; }
+.login-card .brand .brand-copy { display: block; }
+.login-card .brand-wordmark { font-size: 30px; }
+.button.warning { color: #f0ce85; background: #423721; border-color: #9a783c; }
+.button.warning:hover { background: #59482a; }
+.button.danger { color: #ffced1; background: #492b31; border-color: #a45e69; }
+.button.danger:hover { background: #623640; }
+
+@media (max-width: 760px) {
+  /* Keep navigation labels visible without taking width from the workspace. */
+  .sidebar { position: static; width: auto; padding: 16px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .sidebar .brand { padding: 0 0 16px; }
+  .sidebar .brand > span:last-child { display: block; }
+  .sidebar nav { display: flex; gap: 6px; overflow-x: auto; padding: 4px 4px 10px; }
+  .sidebar nav a { flex: none; font-size: 13px; gap: 8px; padding: 10px 12px; min-height: 44px; }
+  body > main { margin-left: 0; }
+  .topbar { height: auto; min-height: 64px; padding: 12px 16px; flex-wrap: wrap; gap: 12px; }
+  .topbar .heading-actions { max-width: none; }
+  .heading-row { flex-direction: column; align-items: stretch; gap: 16px; }
+  .heading-row > .heading-actions { width: 100%; max-width: none; justify-content: flex-start; }
+  #stack-actions { width: 100%; justify-content: flex-start; }
+  .button { min-height: 44px; }
+  .page-footer { flex-wrap: wrap; gap: 8px; }
+}
+
+/* Fixed Lucide geometry inherits navigation text/active colors. */
+.sidebar nav .nav-icon { display: block; width: 20px; height: 20px; flex: none; }
+
+/* The supplied navy wordmark sits directly on a light setup card. */
+.setup-page .login-card { color-scheme: light; --text: #0b1f3b; --muted: #475569; --accent: #0b5cad; background: #f8fafe; border-color: #c5d3e1; color: var(--text); }
+.setup-page .brand { padding-bottom: 24px; }
+.setup-page .brand-lockup { width: 100%; height: auto; border-radius: 0; }
+.setup-page .form-field { color: #243b53; }
+.setup-page .form-field input { background: #fff; border-color: #7b8da3; color: var(--text); }
+.setup-page .error { background: #fff0f1; border-color: #a34452; color: #8b1c2d; }
+.setup-page .button.primary { background: #0b5cad; border-color: #0b5cad; color: #fff; }
+.setup-page .button.primary:hover { background: #084b8d; border-color: #084b8d; }

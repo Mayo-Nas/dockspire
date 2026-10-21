@@ -6,7 +6,7 @@
 
 Create a short-lived branch from `main`, make focused changes, and open a pull request targeting `main`. Run the checks below, obtain independent code and security reviews, and wait for hosted CI before merging. See [CONTRIBUTING.md](../CONTRIBUTING.md) and [repository policy](GITHUB.md). The legacy `development` branch has been removed; do not recreate the split file-set workflow.
 
-Run from the repository root. Go 1.27.2 builds `cmd/dockspire`; backend code/tests are in `internal/app`. `web` embeds runtime HTML/CSS/JavaScript and assets, excluding Go source. Node 24 runs UI regression tests; no npm installation/build is required.
+Run from the repository root. Go 1.27.3 builds `cmd/dockspire`; backend code/tests are in `internal/app`. `web` embeds runtime HTML/CSS/JavaScript and assets, excluding Go source. Node 24 runs UI regression tests; no npm installation/build is required.
 
 ## Checks and native demo
 

@@ -66,7 +66,7 @@ try {
     $env:GOOS='linux'; $env:GOARCH='amd64'; $env:CGO_ENABLED='0'
     $env:GOTOOLCHAIN='local'; $env:GOTELEMETRY='off'; $env:GOENV='off'; $env:GOWORK='off'
     $taskVersion = (Invoke-Go @('env','GOVERSION')).Trim()
-    if ($taskVersion -ne 'go1.27.2') { throw 'Use the pinned Go 1.27.2 toolchain; review notices when upgrading it' }
+    if ($taskVersion -ne 'go1.27.3') { throw 'Use the pinned Go 1.27.3 toolchain; review notices when upgrading it' }
     $taskGoRoot = (Invoke-Go @('env','GOROOT')).Trim()
     $taskGoNotices = @(Get-Notices $taskGoRoot)
     if ($taskGoNotices -notcontains 'LICENSE' -or $taskGoNotices -notcontains 'PATENTS') { throw 'Go license/patent notices are missing' }

@@ -282,6 +282,7 @@ window.stackUI = (() => {
         if (current !== generation || !dialog.open) return;
         await configurationHistory(name, true, `${result.removed || 0} old configurations removed.`);
       }));
+      clean.className += ' danger';
       clean.disabled = true; confirmation.addEventListener('input', () => { clean.disabled = confirmation.value !== name; });
       body.append(field(`Type ${name} to confirm cleanup`, confirmation), clean);
     });
@@ -350,6 +351,7 @@ window.stackUI = (() => {
       if (current !== generation || !dialog.open) return;
       await watchJob(job);
     }), true);
+    if (plan.kind !== 'start') submit.className = 'button warning';
     submit.disabled = true; confirmation.addEventListener('input', () => { submit.disabled = confirmation.value !== plan.confirmation; }); body.append(submit);
   }
   async function showSaved(name, notice = '') {
