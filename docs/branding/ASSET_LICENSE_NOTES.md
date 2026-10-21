@@ -1,2 +1,6 @@
 # Asset status
 These generated graphics are concept art supplied for the Dockspire project. No trademark clearance or name/domain availability is represented here. This package does not contain font files. All derivatives are raster assets; no SVG/vector master is included.
+
+Active product branding uses the owner-supplied Dockspire Fresh Brand Pack without image processing. The sidebar, sign-in page, browser/touch icon and README reference marks/dockspire-mark-transparent.png. Sidebar and sign-in lockups pair it with a readable white/blue HTML product name and tagline. Administrator setup instead displays the exact logos/dockspire-logo-horizontal-primary.png on a light setup card; the logo has no separate backing plate. No opaque tile or rounded mask is applied to active branding.
+
+Existing public asset paths are retained for compatibility: web/brand/dockspire-icon-256.png contains the original 1254 × 1254 transparent mark, and web/brand/dockspire-horizontal-dark.png contains the original 2172 × 724 primary horizontal logo with navy text. Its legacy filename does not describe its required light surface. Earlier dark 64/128 px tile icons, the legacy ICO and earlier documentation assets remain historical assets. Navigation icon provenance and complete ISC/Feather MIT notices are recorded separately in docs/BRANDING.md and licenses/lucide-LICENSE.

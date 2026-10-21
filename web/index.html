@@ -6,7 +6,7 @@
   <title>Dockspire · Container management</title>
   <meta name="description" content="Dockspire — Dock. Deploy. Manage. Your container management workspace.">
   <meta name="theme-color" content="#0B1F3B">
-  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" href="/brand/dockspire-icon-256.png" type="image/png" sizes="1254x1254">
   <link rel="apple-touch-icon" href="/brand/dockspire-icon-256.png">
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" defer></script>
@@ -16,16 +16,17 @@
 </head>
 <body>
   <aside class="sidebar">
-    <a class="brand" href="#dashboard" aria-label="Dockspire dashboard"><img class="brand-mark" src="/brand/dockspire-icon-64.png" srcset="/brand/dockspire-icon-128.png 2x" width="44" height="44" alt=""><span class="brand-copy"><span class="brand-wordmark">Dock<span>spire</span></span><small>DOCK. DEPLOY. MANAGE.</small></span></a>
+    <a class="brand" href="#dashboard" aria-label="Dockspire dashboard"><img class="brand-mark" src="/brand/dockspire-icon-256.png" width="44" height="44" alt=""><span class="brand-copy"><span class="brand-wordmark">Dock<span>spire</span></span><small>DOCK. DEPLOY. MANAGE.</small></span></a>
     <div class="nav-label">WORKSPACE</div>
     <nav aria-label="Main navigation">
-      <a href="#dashboard" data-view="dashboard"><span aria-hidden="true">◫</span> Dashboard</a>
-      <a href="#stacks" data-view="stacks"><span aria-hidden="true">▤</span> Stacks <span class="nav-count" id="count-stacks">—</span></a>
-      <a href="#containers" data-view="containers"><span aria-hidden="true">▣</span> Containers <span class="nav-count" id="count-containers">—</span></a>
-      <a href="#images" data-view="images"><span aria-hidden="true">◇</span> Images</a>
-      <a href="#networks" data-view="networks"><span aria-hidden="true">⌘</span> Networks</a>
-      <a href="#volumes" data-view="volumes"><span aria-hidden="true">▱</span> Volumes</a>
-      <a href="#system" data-view="system"><span aria-hidden="true">⚙</span> Docker</a>
+      <!-- Lucide 0.468.0 geometry; ISC/Feather MIT notices: licenses/lucide-LICENSE. -->
+      <a href="#dashboard" data-view="dashboard"><svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg> Dashboard</a>
+      <a href="#stacks" data-view="stacks"><svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg> Stacks <span class="nav-count" id="count-stacks">—</span></a>
+      <a href="#containers" data-view="containers"><svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M22 7.7c0-.6-.4-1.2-.8-1.5l-6.3-3.9a1.72 1.72 0 0 0-1.7 0l-10.3 6c-.5.2-.9.8-.9 1.4v6.6c0 .5.4 1.2.8 1.5l6.3 3.9a1.72 1.72 0 0 0 1.7 0l10.3-6c.5-.3.9-1 .9-1.5Z"/><path d="M10 21.9V14L2.1 9.1"/><path d="m10 14 11.9-6.9"/><path d="M14 19.8v-8.1"/><path d="M18 17.5V9.4"/></svg> Containers <span class="nav-count" id="count-containers">—</span></a>
+      <a href="#images" data-view="images"><svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="m3.3 7 7.703 4.734a2 2 0 0 0 1.994 0L20.7 7"/><path d="m7.5 4.27 9 5.15"/></svg> Images</a>
+      <a href="#networks" data-view="networks"><svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg> Networks</a>
+      <a href="#volumes" data-view="volumes"><svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="22" x2="2" y1="12" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" x2="6.01" y1="16" y2="16"/><line x1="10" x2="10.01" y1="16" y2="16"/></svg> Volumes</a>
+      <a href="#system" data-view="system"><svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg> Docker</a>
     </nav>
     <div class="sidebar-footer"><span class="connection-dot"></span> Docker workspace<small>Local access</small></div>
   </aside>

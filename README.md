@@ -2,10 +2,9 @@
 
 `main` contains the complete maintained source, tests, CI and release tooling. Installation uses a minimal runtime image; contributor files are not shipped in that image.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="web/brand/dockspire-horizontal-dark.png">
-  <img src="docs/branding/dockspire-horizontal-light.png" alt="Dockspire — Dock. Deploy. Manage." width="560">
-</picture>
+<img src="web/brand/dockspire-icon-256.png" alt="Dockspire mark" width="96">
+
+Dock. Deploy. Manage.
 
 Docker and Compose management for self-hosted Linux servers. Dockspire provides live inventory, container diagnostics, a saved Compose stack library, reviewed deployments and updates, configuration history, and portable backups.
 
