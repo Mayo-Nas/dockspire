@@ -10,6 +10,6 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md), [development checks](docs/DEVELOPMENT.m
 - Keep review evidence, assistant settings, credentials, environment values, diagnostics and generated files outside tracked source. Do not access credential stores without explicit authorization or expose secret matches.
 - Source pushes, remote repository creation, version tags, image publication, GitHub Releases, deployment and public visibility each need explicit authorization for that action. Never force-push or rewrite published history without explicit approval.
 - Release one reviewed, tested version tag from `main`. Dispatch the image publisher from `main` for that tag; keep its full checks and executable scans. Do not invent a second build tag or selectively promote files.
-- Preserve third-party notices and branding provenance. Dockspire's source license is undecided; do not select a license or claim open-source status without an owner decision.
+- Preserve Dockspire's Apache 2.0 LICENSE and NOTICE in source and runtime images, together with third-party notices and branding provenance.
 
 These are persistent project instructions, not automatically enforced gates. Repository protection availability and release details are documented in [docs/GITHUB.md](docs/GITHUB.md).

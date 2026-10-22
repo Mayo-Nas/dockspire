@@ -53,7 +53,7 @@ The backend remains one internal application package. Feature files stay togethe
 
 `main` contains the complete maintained source, tests, CI and release tooling. Installation uses a minimal runtime image; contributor files are not shipped in that image.
 
-Create a short-lived feature branch from `main`, open a pull request to `main`, and run the documented checks before merging. The legacy `development` branch has been removed; use short-lived branches and pull requests to `main`.
+Dockspire is owner-maintained, with write and merge access by invitation only. Outside contributors use forks and may propose changes through pull requests; acceptance and support are at the owner's discretion.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [development and checks](docs/DEVELOPMENT.md), and [repository and release policy](docs/GITHUB.md). Native source builds require Go 1.27.3; Node 24 runs browser regression tests. Published-image installation requires no host Go or Node; optional source builds run in Docker. Detailed application workflows and access/backup behavior are in the [operations manual](docs/OPERATIONS.md).
 
@@ -63,4 +63,4 @@ The supported release target is Linux amd64 with Docker Engine and modern Compos
 
 v0.1.2 is the branding and security maintenance release: refreshed supplied artwork, consistent navigation icons and a Go 1.27.3 build toolchain. Before using the versioned installation commands above, confirm its release notes record the verified private image and immutable digest. Source changes and version tags alone do not publish images or update running installations.
 
-The canonical repository is [Mayo-Nas/dockspire](https://github.com/Mayo-Nas/dockspire). [Repository and publication guidance](docs/GITHUB.md) covers source/privacy review and image releases. Dockspire's own source license remains undecided; files under `licenses/` retain Go, YAML, bundled Docker Compose and Lucide/Feather notices, and branding retains its supplied [asset notes](docs/branding/ASSET_LICENSE_NOTES.md).
+The canonical repository is [Mayo-Nas/dockspire](https://github.com/Mayo-Nas/dockspire). Dockspire is licensed under [Apache 2.0](LICENSE); attribution is in [NOTICE](NOTICE). Files under `licenses/` retain third-party notices, and branding retains its supplied [asset notes](docs/branding/ASSET_LICENSE_NOTES.md). See [repository and release guidance](docs/GITHUB.md).
