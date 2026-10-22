@@ -4,7 +4,7 @@
 
 `main` holds the complete source, regression tests, CI, documentation and release tools. Keep runtime images and release assets minimal through packaging, rather than maintaining different file sets on separate branches.
 
-Create a short-lived branch from `main`, make focused changes, and open a pull request targeting `main`. Run the checks below, obtain independent code and security reviews, and wait for hosted CI before merging. See [CONTRIBUTING.md](../CONTRIBUTING.md) and [repository policy](GITHUB.md). The legacy `development` branch has been removed; do not recreate the split file-set workflow.
+Create a short-lived branch from `main`, make focused changes, and open a pull request targeting `main`. Outside contributors use a fork. Run the applicable checks below and wait for maintainer review and CI before merging. See [CONTRIBUTING.md](../CONTRIBUTING.md) and [repository policy](GITHUB.md).
 
 Run from the repository root. Go 1.27.3 builds `cmd/dockspire`; backend code/tests are in `internal/app`. `web` embeds runtime HTML/CSS/JavaScript and assets, excluding Go source. Node 24 runs UI regression tests; no npm installation/build is required.
 

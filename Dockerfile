@@ -23,6 +23,7 @@ FROM scratch
 COPY --from=build /stacklane /stacklane
 COPY --from=compose /docker-compose /docker-compose
 COPY --from=build /src/licenses /licenses
+COPY LICENSE NOTICE /licenses/
 LABEL org.opencontainers.image.source="https://github.com/Mayo-Nas/dockspire"
 EXPOSE 8787
 ENTRYPOINT ["/stacklane"]

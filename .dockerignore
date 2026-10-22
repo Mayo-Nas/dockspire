@@ -1,6 +1,8 @@
-# Only source and dependency notices needed by the Dockerfile enter the build.
+# Only source and license notices needed by the Dockerfile enter the build.
 **
 !Dockerfile
+!LICENSE
+!NOTICE
 !go.mod
 !go.sum
 !cmd/
