@@ -3,9 +3,6 @@ updates:
   - package-ecosystem: gomod
     directory: /
     schedule: { interval: weekly }
-  - package-ecosystem: gomod
-    directory: /deploy/compose-runtime
-    schedule: { interval: weekly }
   - package-ecosystem: npm
     directory: /tests/browser
     schedule: { interval: weekly }

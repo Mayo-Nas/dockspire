@@ -6,7 +6,7 @@ The canonical repository is [Mayo-Nas/dockspire](https://github.com/Mayo-Nas/doc
 
 Dockspire is maintained by its owner. `main` contains the complete maintained source, tests, CI, release tooling and documentation. Use focused branches and reviewed pull requests to `main`. See [development checks](DEVELOPMENT.md).
 
-CI checks Go on Linux/Windows, fast JavaScript regressions, a real-browser setup/sign-in/draft/review smoke test, installation fixtures, a disposable Linux container and takeover, and the exact image executables for vulnerabilities. Full-history Gitleaks is pinned and fully redacted; a weekly schedule repeats CI. Dependabot proposes Go, bundled Compose, browser-test, Actions and builder-image updates. Updates require review; no automatic merge, image publication or deployment is configured.
+CI checks Go on Linux/Windows, fast JavaScript regressions, a real-browser setup/sign-in/draft/review smoke test, installation fixtures, a disposable Linux container and takeover, and the exact image executables for vulnerabilities. Full-history Gitleaks is pinned and fully redacted; a weekly schedule repeats CI. Dependabot proposes application Go, browser-test, Actions and builder-image updates. Bundled Compose uses a standalone build manifest and follows the [manual pinned update procedure](../deploy/compose-runtime/README.md#dependency-updates). Updates require review; no automatic merge, image publication or deployment is configured.
 
 Credentialed baseline checks run only on canonical trusted main, never fork pull requests or fork-main workflows. Ordinary CI does not publish images.
 
