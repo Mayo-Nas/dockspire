@@ -158,6 +158,16 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Set up pinned Go for the isolated measurement probe
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.3'
+      - name: Build standard-library-only Linux measurement probe
+        env:
+          GOTOOLCHAIN: local
+          GOTELEMETRY: 'off'
+          CGO_ENABLED: '0'
+        run: go build -mod=readonly -trimpath -o "$RUNNER_TEMP/dockspire-upgrade-probe" ./tests/upgrade-probe
       - name: Build upgrade candidate
         run: docker build --platform linux/amd64 -t dockspire:upgrade .
       - name: Pull verified upgrade baseline
@@ -171,4 +181,4 @@ jobs:
           set -euo pipefail
           previous=$(docker image inspect --format '{{.Id}}' ghcr.io/mayo-nas/dockspire@sha256:4fd7ba7c829c48087d6f76883d7c553c33a4e46737d44583580d5716b2b4303c)
           candidate=$(docker image inspect --format '{{.Id}}' dockspire:upgrade)
-          bash tests/test-upgrade.sh "$previous" "$candidate" dev
+          DOCKSPIRE_UPGRADE_PROBE="$RUNNER_TEMP/dockspire-upgrade-probe" bash tests/test-upgrade.sh "$previous" "$candidate" dev

@@ -2,6 +2,16 @@
 # Synthetic data only, no Docker socket. Old -> candidate -> restored-old -> preserved-candidate.
 set -Eeuo pipefail
 # Emit fixture coordinates only: commands, payloads and authentication stay private.
+emit_probe_lines() {
+ local line metadata_pattern credentials_pattern security_pattern exec_pattern
+ metadata_pattern='^probe label=(old|candidate|rollback) target=(data|admin) type=(regular|directory|symlink|other|unknown) uid=-?[0-9]+ gid=-?[0-9]+ mode=[0-7]{4} stat_errno=-?[0-9]+$'
+ credentials_pattern='^probe label=(old|candidate|rollback) uid_real=-?[0-9]+ uid_effective=-?[0-9]+ uid_saved=-?[0-9]+ uid_fs=-?[0-9]+ gid_real=-?[0-9]+ gid_effective=-?[0-9]+ gid_saved=-?[0-9]+ gid_fs=-?[0-9]+ groups=(none|unknown|[0-9]+(,[0-9]+){0,127}) groups_count=-?[0-9]+ groups_complete=(0|1) groups_truncated=(0|1) parent_group_match=(-1|0|1) admin_group_match=(-1|0|1)$'
+ security_pattern='^probe label=(old|candidate|rollback) cap_eff=([0-9a-f]{16}|unknown) cap_bnd=([0-9a-f]{16}|unknown) no_new_privs=(-1|0|1) status_complete=(0|1) open_errno=-?[0-9]+$'
+ exec_pattern='^probe exec_errno=-?[0-9]+$'
+ while IFS= read -r line; do
+  if [[ "$line" =~ $metadata_pattern || "$line" =~ $credentials_pattern || "$line" =~ $security_pattern || "$line" =~ $exec_pattern ]]; then printf '%s\n' "$line"; fi
+ done <<< "$1"
+}
 fixture_failure() {
  local line=$1 status=$2 identity='' state=unknown code=unknown oom=false logs='' category=unclassified
  trap - ERR
@@ -15,6 +25,7 @@ fixture_failure() {
    [[ "$code" =~ ^[0-9]+$ ]] || code=unknown
    # Logs remain in bounded memory. Never print raw startup text or values.
    logs=$(timeout --kill-after=1s 3s docker logs --tail 20 "$name" 2>&1 | head -c 65536) || true
+   if [[ -n "${probe:-}" ]]; then emit_probe_lines "$logs"; fi
    if [[ "$oom" == true ]]; then category=memory-limit; else
     case "$logs" in
      *'Administrator file missing or unsafe;'*) category=admin-file-safety ;;
@@ -41,6 +52,12 @@ new_version=${3:?Missing candidate version}
 for image in "$old_image" "$new_image"; do
  [[ $(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image") == linux/amd64 ]]
 done
+probe=${DOCKSPIRE_UPGRADE_PROBE:-}
+probe_mount=()
+if [[ -n "$probe" ]]; then
+ [[ "$probe" == /* && "$probe" != *,* && -f "$probe" && -x "$probe" && ! -L "$probe" && $(realpath "$probe") == "$probe" ]]
+ probe_mount=(--mount "type=bind,src=$probe,dst=/upgrade-probe,readonly")
+fi
 owner="dockspire-upgrade-$(date +%s)-$$-$RANDOM"
 directory=$(mktemp -d "${TMPDIR:-/tmp}/dockspire-upgrade.XXXXXX")
 container_created=false
@@ -74,6 +91,32 @@ cleanup() {
 }
 trap cleanup EXIT
 curl() { command curl --connect-timeout 3 --max-time 25 "$@"; }
+probe_context() {
+ local context
+ [[ $(timeout --kill-after=1s 3s docker inspect --format '{{index .Config.Labels "io.dockspire.upgrade-test"}}' "$name" 2>/dev/null | head -c 512) == "$owner" ]]
+ [[ $(timeout --kill-after=1s 3s docker inspect --format '{{.Image}}' "$name" 2>/dev/null | head -c 512) == "$running_image" ]]
+ context=$(timeout --kill-after=1s 3s docker inspect --format '{"user":{{json .Config.User}},"drop":{{json .HostConfig.CapDrop}},"opts":{{json .HostConfig.SecurityOpt}},"profile":{{json .AppArmorProfile}}}' "$name" 2>/dev/null | head -c 65536)
+ jq -er --arg phase "$phase" '
+  (if .user == "" then "default-root" elif (.user | test("^[0-9]+(:[0-9]+)?$")) then .user elif .user == "root" or .user == "root:root" then "root" else "other" end) as $user |
+  (if ((.drop // []) | index("ALL")) != null then "all" else "other" end) as $drop |
+  ((.opts // []) | any(. == "no-new-privileges:true" or . == "no-new-privileges")) as $nnp |
+  (if .profile == "" then "none" elif .profile == "docker-default" then "docker-default" else "other" end) as $profile |
+  (if ((.opts // []) | index("seccomp=unconfined")) != null then "unconfined" elif ((.opts // []) | any(startswith("seccomp="))) then "other" else "default" end) as $seccomp |
+  "Upgrade probe context: phase=\($phase) user=\($user) cap_drop=\($drop) no_new_privs=\($nnp) apparmor=\($profile) seccomp=\($seccomp)"
+ ' <<< "$context" 2>/dev/null
+}
+checkpoint_metadata() {
+ local target fields uid gid mode rawmode
+ for target in data admin; do
+  local path="$checkpoint"
+  if [[ "$target" == admin ]]; then path="$checkpoint/admin.json"; fi
+  fields=$(stat -c '%u %g %a %f' "$path" 2>/dev/null) || fields=''
+  read -r uid gid mode rawmode <<< "$fields" || true
+  if [[ "$uid" =~ ^[0-9]+$ && "$gid" =~ ^[0-9]+$ && "$mode" =~ ^[0-7]{3,4}$ && "$rawmode" =~ ^[0-9a-f]+$ ]]; then
+   printf 'Upgrade probe checkpoint: target=%s uid=%s gid=%s mode=%s mode_hex=%s\n' "$target" "$uid" "$gid" "$mode" "$rawmode"
+  else printf 'Upgrade probe checkpoint: target=%s metadata=unavailable\n' "$target"; fi
+ done
+}
 # Fixture contents are ASCII and both environment files exist. Encode exactly
 # the new Go JSON/base64 identity, using the stopped pre-upgrade snapshot bytes.
 expected_exact_token() {
@@ -127,12 +170,19 @@ for scenario in http https http-passwordless https-passwordless; do
    active_volume=$rollback_volume
   fi
   [[ -z $(docker ps -aq --filter "name=^/$name$") ]]
+  entrypoint=()
+  command=(--demo --setup --listen ":$port_in" --data-dir /appdata "${transport[@]}")
+  if [[ -n "$probe" && "$phase" == rollback ]]; then
+   entrypoint=(--entrypoint /upgrade-probe)
+   command=(--exec rollback -- "${command[@]}")
+  fi
   docker create --pull never --name "$name" --label "io.dockspire.upgrade-test=$owner" \
    --read-only --cap-drop ALL --security-opt no-new-privileges:true \
    --memory 256m --cpus 0.5 --pids-limit 64 --tmpfs /tmp:rw,noexec,nosuid,size=64m \
-   -p "127.0.0.1::$port_in" -v "$active_volume:/appdata" "$running_image" \
-   --demo --setup --listen ":$port_in" --data-dir /appdata "${transport[@]}" >/dev/null
+   -p "127.0.0.1::$port_in" -v "$active_volume:/appdata" "${probe_mount[@]}" "${entrypoint[@]}" "$running_image" \
+   "${command[@]}" >/dev/null
   container_created=true
+  if [[ -n "$probe" ]]; then probe_context; fi
   if [[ "$phase" == rollback ]]; then docker cp "$checkpoint/." "$name:/appdata"; fi
   docker start "$name" >/dev/null
   port=$(docker port "$name" "$port_in/tcp" | sed -n 's/^127\.0\.0\.1://p')
@@ -143,6 +193,10 @@ for scenario in http https http-passwordless https-passwordless; do
    sleep 1
   done
   curl "${curl_args[@]}" -fsS "$base/api/health" >/dev/null
+  if [[ -n "$probe" && "$phase" == rollback ]]; then
+   probe_logs=$(timeout --kill-after=1s 3s docker logs --tail 20 "$name" 2>&1 | head -c 65536) || true
+   emit_probe_lines "$probe_logs"
+  fi
   if [[ "$scheme" == https ]]; then
    current_fingerprint=$(docker exec "$name" /stacklane --tls-fingerprint --data-dir /appdata)
    [[ "$current_fingerprint" == 'SHA256 Fingerprint='* ]]
@@ -213,9 +267,13 @@ for scenario in http https http-passwordless https-passwordless; do
     candidate_histories+=("$(api "$base/api/stacks/$stack/revisions" | jq -Sc .)")
    done
   fi
+  if [[ -n "$probe" && ( "$phase" == old || "$phase" == candidate ) ]]; then
+   timeout --kill-after=1s 5s docker exec "$name" /upgrade-probe --inspect-only "$phase" 2>/dev/null
+  fi
   if [[ "$phase" == old ]]; then
    docker stop --time 10 "$name" >/dev/null
    docker cp "$name:/appdata/." "$checkpoint"
+   if [[ -n "$probe" ]]; then checkpoint_metadata; fi
   fi
   remove_container
  done
