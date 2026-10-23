@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Synthetic data only, no Docker socket. Old -> candidate -> restored-old -> preserved-candidate.
-set -euo pipefail
+set -Eeuo pipefail
+# Emit fixture coordinates only: commands, payloads and authentication stay private.
+trap 'printf "Upgrade fixture failed: line=%s scenario=%s phase=%s\n" "$LINENO" "${scenario:-preflight}" "${phase:-preflight}" >&2' ERR
 old_image=${1:?Usage: test-upgrade.sh OLD_IMAGE_ID NEW_IMAGE_ID NEW_VERSION}
 new_image=${2:?Missing candidate image ID}
 new_version=${3:?Missing candidate version}
@@ -83,6 +85,7 @@ for scenario in http https http-passwordless https-passwordless; do
  candidate_histories=()
  fingerprint=''
  for phase in old candidate rollback candidate-preserved; do
+  printf 'Upgrade fixture: scenario=%s phase=%s\n' "$scenario" "$phase"
   running_image=$old_image
   expected_version=v0.1.1
   active_volume=$volume
