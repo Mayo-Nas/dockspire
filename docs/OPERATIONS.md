@@ -110,3 +110,9 @@ The unchanged service template is now `deploy/host-helper/stacklane-host.service
 For `restrict-host-helper.sh`, stage a `SHA256SUMS` file from the verified build that includes the `stacklane` executable; the replacement script verifies it before installation.
 
 Existing formats and native executable names retain `stacklane`, `STACKLANE_*`, the `stacklane-library` archive kind and related compatibility identifiers. The product/browser name is Dockspire. Preserve an installation's project name and data mount when upgrading; see [INSTALL.md](INSTALL.md) for backup and rollback.
+
+## Configuration identity and archive compatibility
+
+Current source writes presence-aware, lossless configuration identities: an absent environment file differs from a present empty file, including raw non-UTF-8 bytes. Existing initial bundle IDs, revision directory names, applied/recovery references and operation history remain unchanged and readable. A newly saved revision or newly imported/created bundle uses the new identity scheme; old bundles are not renamed or rewritten automatically. Editor/stale-review tokens use exact current content, separately from historical persisted IDs.
+
+Full library archives now use manifest version 2; current source restores both version 1 and version 2. Older binaries reject version-2 archives and may not understand new identities in a live library. Before upgrading, stop Dockspire and take a private whole-data-directory/volume backup including administrator/TLS state. After writing new-format data, rollback requires restoring that compatible pre-upgrade backup with the retained old image into a fresh isolated data volume/path; selecting only the old image is insufficient. Preserve the upgraded data separately until recovery is verified. Workload data needs its own backup.

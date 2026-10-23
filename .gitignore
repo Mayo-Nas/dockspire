@@ -45,7 +45,6 @@ host-refresh-diagnostic.*
 
 # Local development assistants, editors, and disposable work.
 AGENTS.md
-!/AGENTS.md
 CLAUDE.md
 GEMINI.md
 .codex/
@@ -64,4 +63,7 @@ GEMINI.md
 /docs/development/CONTEXT.md
 /docs/development/ARCHITECTURE_AUDIT.md
 /docs/branding/README.md
+/docs/branding/dockspire-horizontal-light.png
+/CONTRIBUTING.md
+/.github/pull_request_template.md
 /docs/branding/dockspire-final-approved-concept-sheet.png

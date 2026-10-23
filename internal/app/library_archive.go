@@ -75,7 +75,7 @@ func (l *stackLibrary) selectArchiveFiles(ctx context.Context, project string, s
 	if info, err := os.Lstat(l.root); err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return errors.New("Choose an existing library directory")
 	}
-	selection.manifest = libraryManifest{Version: 1, Kind: "stacklane-library", CreatedAt: time.Now().UTC().Format(time.RFC3339Nano), Files: map[string]string{}}
+	selection.manifest = libraryManifest{Version: 2, Kind: "stacklane-library", CreatedAt: time.Now().UTC().Format(time.RFC3339Nano), Files: map[string]string{}}
 	selection.files = map[string]string{}
 	manifest, files := &selection.manifest, selection.files
 	if project != "" {
@@ -322,7 +322,7 @@ func validateArchiveLibraryContext(ctx context.Context, l *stackLibrary) error {
 		if err != nil {
 			return err
 		}
-		revisions := map[string]bool{filesFingerprint(files): true}
+		revisions := map[string]bool{initialRevision(record, files): true}
 		base, _ := l.directory(record.Name)
 		entries, readErr := os.ReadDir(filepath.Join(base, "revisions"))
 		if readErr != nil && !os.IsNotExist(readErr) {
@@ -338,7 +338,7 @@ func validateArchiveLibraryContext(ctx context.Context, l *stackLibrary) error {
 			revision := record
 			revision.ConfigRevision = entry.Name()
 			content, err := l.content(revision)
-			if err != nil || filesFingerprint(content) != entry.Name() {
+			if err != nil || !matchesStoredRevision(content, entry.Name()) {
 				return errors.New("A saved configuration revision is incomplete or damaged")
 			}
 			revisions[entry.Name()] = true
@@ -425,7 +425,7 @@ func restoreLibrary(filename, destination string) error {
 	raw, err := io.ReadAll(io.LimitReader(stream, (4<<20)+1))
 	stream.Close()
 	var manifest libraryManifest
-	if err != nil || json.Unmarshal(raw, &manifest) != nil || manifest.Version != 1 || manifest.Kind != "stacklane-library" || len(manifest.Files) != len(entries)-1 {
+	if err != nil || json.Unmarshal(raw, &manifest) != nil || (manifest.Version != 1 && manifest.Version != 2) || manifest.Kind != "stacklane-library" || len(manifest.Files) != len(entries)-1 {
 		return errors.New("Unsupported or incomplete library backup")
 	}
 	if err := ensurePrivateDirectory(filepath.Dir(root)); err != nil {

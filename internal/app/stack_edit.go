@@ -54,8 +54,17 @@ func (l *stackLibrary) content(record StackRecord) (map[string]string, error) {
 	}
 	return files, nil
 }
-func filesFingerprint(files map[string]string) string {
+func legacyFilesFingerprint(files map[string]string) string {
 	return fingerprint(files["compose.yaml"] + "\x00.env\x00" + files[".env"] + "\x00stack.env\x00" + files["stack.env"])
+}
+func filesFingerprint(files map[string]string) string {
+	bundle := []any{"dockspire-files-v2"}
+	for _, name := range []string{"compose.yaml", ".env", "stack.env"} {
+		value, present := files[name]
+		bundle = append(bundle, []any{name, present, []byte(value)})
+	}
+	raw, _ := json.Marshal(bundle)
+	return fingerprint(string(raw))
 }
 func (l *stackLibrary) contentFingerprint(record StackRecord) (string, error) {
 	files, err := l.content(record)

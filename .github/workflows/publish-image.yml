@@ -5,9 +5,22 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Existing version tag to test and publish (for example v0.1.0)
+        description: Existing licensed-main version tag to test and publish (for example v0.2.0)
         required: true
         type: string
+
+      repository_visibility:
+        description: Expected current repository visibility (this workflow never changes it)
+        required: true
+        default: private
+        type: choice
+        options: [private, public]
+      package_visibility:
+        description: Expected current GHCR package visibility (independent of repository)
+        required: true
+        default: private
+        type: choice
+        options: [private, public]
 
 permissions:
   contents: read
@@ -18,6 +31,7 @@ concurrency:
 
 jobs:
   publish:
+    if: github.repository == 'Mayo-Nas/dockspire' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -25,6 +39,8 @@ jobs:
       packages: write
     env:
       RELEASE_VERSION: ${{ inputs.version }}
+      EXPECTED_REPOSITORY_VISIBILITY: ${{ inputs.repository_visibility }}
+      EXPECTED_PACKAGE_VISIBILITY: ${{ inputs.package_visibility }}
       GOTELEMETRY: 'off'
       GOTOOLCHAIN: local
       CGO_ENABLED: '0'
@@ -52,6 +68,16 @@ jobs:
           fi
           git merge-base --is-ancestor HEAD refs/remotes/origin/main
 
+      - name: Verify expected publication destination and licensed source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f LICENSE && test -f NOTICE
+          grep -q 'Apache License' LICENSE
+          bash scripts/check-release-destination.sh "$EXPECTED_REPOSITORY_VISIBILITY" "$EXPECTED_PACKAGE_VISIBILITY" >/dev/null
+
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -71,6 +97,11 @@ jobs:
           go vet ./...
           for test in tests/test-*.mjs; do node "$test"; done
           sh tests/test-installation.sh
+          bash tests/test-release-policy.sh
+
+      - name: Run real-browser smoke test
+        shell: bash
+        run: bash scripts/check-browser.sh --with-deps
 
       - name: Build and verify the image
         shell: bash
@@ -83,9 +114,10 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
           bash scripts/check-image-security.sh "$image" "$(go env GOPATH)/bin/govulncheck"
 
-      - name: Pull verified private upgrade baseline
+      - name: Pull verified upgrade baseline
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCKSPIRE_BASELINE_PACKAGE_VISIBILITY: ${{ vars.DOCKSPIRE_BASELINE_PACKAGE_VISIBILITY || 'private' }}
         run: bash scripts/pull-upgrade-baseline.sh
 
       - name: Verify disposable upgrade and rollback without registry credentials
@@ -103,24 +135,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          repository_metadata="$(gh api "repos/$GITHUB_REPOSITORY")"
-          jq -e '.private == true' <<< "$repository_metadata" >/dev/null
-          owner_type="$(jq -er '.owner.type' <<< "$repository_metadata")"
-          case "$owner_type" in
-            User) owner_endpoint=users ;;
-            Organization) owner_endpoint=orgs ;;
-            *) echo 'Unsupported repository owner type.' >&2; exit 1 ;;
-          esac
-          package_name="${GITHUB_REPOSITORY#*/}"
-          package_name="${package_name,,}"
-          package_api="$owner_endpoint/$GITHUB_REPOSITORY_OWNER/packages/container/$package_name"
-          require_private_package() {
-            gh api "$package_api" | jq -e --arg name "$package_name" --arg repository "$GITHUB_REPOSITORY" '
-              .visibility == "private" and .package_type == "container" and .name == $name and
-              (.repository == null or .repository.full_name == $repository)
-            ' >/dev/null
+          package_api="$(bash scripts/check-release-destination.sh "$EXPECTED_REPOSITORY_VISIBILITY" "$EXPECTED_PACKAGE_VISIBILITY")"
+          require_expected_destination() {
+            local checked
+            checked="$(bash scripts/check-release-destination.sh "$EXPECTED_REPOSITORY_VISIBILITY" "$EXPECTED_PACKAGE_VISIBILITY")"
+            [[ "$checked" == "$package_api" ]]
           }
-          require_private_package
+          require_expected_destination
           versions="$(gh api --paginate --slurp "$package_api/versions?per_page=100")"
           jq -e --arg version "$RELEASE_VERSION" 'all(.[][]; (.metadata.container.tags | index($version)) == null)' <<< "$versions" >/dev/null
           image="ghcr.io/${GITHUB_REPOSITORY,,}:$RELEASE_VERSION"
@@ -135,7 +156,7 @@ jobs:
           image_repository="${image%:*}"
           docker image inspect "$image" --format '{{json .RepoDigests}}' | jq -e --arg reference "$image_repository@$digest" 'index($reference) != null' >/dev/null
           for attempt in 1 2 3 4 5; do
-            require_private_package
+            require_expected_destination
             versions="$(gh api --paginate --slurp "$package_api/versions?per_page=100")"
             published_digest="$(jq -r --arg version "$RELEASE_VERSION" '[.[][] | select(.metadata.container.tags | index($version)) | .name] | if length == 0 then "" elif length == 1 then .[0] else error("Expected exactly one published version") end' <<< "$versions")"
             if [[ -n "$published_digest" ]]; then
@@ -149,5 +170,5 @@ jobs:
             sleep 3
           done
           printf 'image=%s@%s\n' "$image_repository" "$digest" >> "$GITHUB_OUTPUT"
-          printf 'Published verified private image: `%s@%s`\n' "$image_repository" "$digest" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Published verified %s image: `%s@%s`\n' "$EXPECTED_PACKAGE_VISIBILITY" "$image_repository" "$digest" >> "$GITHUB_STEP_SUMMARY"
           printf 'DOCKSPIRE_RELEASE_IMAGE=%s@%s\n' "$image_repository" "$digest"

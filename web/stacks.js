@@ -367,7 +367,7 @@ window.stackUI = (() => {
       else if (session.deployEnabled) body.append(button(record.takeoverStatus === 'pending' ? 'Review takeover recovery' : 'Review takeover', () => operation(() => review(name, '', 'takeover')), true));
     }
     else {
-      const active = history.find(job => job.status === 'running'), pending = record.deployedAt && record.appliedRevision !== record.fingerprint;
+      const active = history.find(job => job.status === 'running'), pending = Boolean(record.unappliedChanges);
       body.append(node('p', active ? 'A container operation is in progress. Wait for its result before making changes.' : record.recoveryRequired ? 'A previous deployment needs inspection. Existing containers may have changed. Review whole-stack recovery or use the reviewed controls for existing containers.' : record.deployedAt ? (pending ? 'Saved configuration has unapplied changes. Review and update the whole stack to apply them.' : `Last successful deployment: ${new Date(record.deployedAt).toLocaleString()}`) : 'Saved draft. No containers have been deployed by this draft.', 'notice'));
       const actions = node('div', undefined, 'form-actions');
       if (active) actions.append(button('View active operation', () => watchJob(active), true));

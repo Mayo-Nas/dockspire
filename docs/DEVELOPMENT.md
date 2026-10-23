@@ -4,9 +4,9 @@
 
 `main` holds the complete source, regression tests, CI, documentation and release tools. Keep runtime images and release assets minimal through packaging, rather than maintaining different file sets on separate branches.
 
-Create a short-lived branch from `main`, make focused changes, and open a pull request targeting `main`. Outside contributors use a fork. Run the applicable checks below and wait for maintainer review and CI before merging. See [CONTRIBUTING.md](../CONTRIBUTING.md) and [repository policy](GITHUB.md).
+Use short-lived branches for focused changes to `main`. Run the applicable checks below and complete review and CI before merging. See [repository policy](GITHUB.md).
 
-Run from the repository root. Go 1.27.3 builds `cmd/dockspire`; backend code/tests are in `internal/app`. `web` embeds runtime HTML/CSS/JavaScript and assets, excluding Go source. Node 24 runs UI regression tests; no npm installation/build is required.
+Run from the repository root. Go 1.27.3 builds `cmd/dockspire`; backend code/tests are in `internal/app`. `web` embeds runtime HTML/CSS/JavaScript and assets, excluding Go source. Node 24 runs CI browser checks. Fast JavaScript regressions need no npm installation; the real-browser smoke suite uses a separate pinned test-only package and lockfile.
 
 ## Checks and native demo
 
@@ -31,6 +31,16 @@ Use fictional data in a dedicated ignored directory:
 Open http://127.0.0.1:8787 and create the administrator within five minutes; no setup token is needed. Restarting reopens an unfinished setup window without replacing an existing administrator. Native HTTP remains loopback-only unless --allow-http or an explicit origin is supplied. Demo mode never connects to Docker or deploys workloads.
 
 Offline `--init-admin`/`--reset-admin` use literal nonempty UTF-8 stdin and require a stopped server; trailing newlines are password characters and empty EOF fails. Explicit matching blank browser setup fields persist passwordless mode. Generic auth JSON bodies are capped at 1 MiB; see [operations](OPERATIONS.md) for exact input/recovery rules and [installation](INSTALL.md) for TLS trust, SANs and custom certificates. Native HTTP defaults to loopback.
+
+## Real-browser smoke test
+
+The fast `tests/test-*.mjs` regressions use a mocked DOM. The separate `tests/browser/` suite pins test-only Playwright 1.64.1 and drives a real browser through administrator setup, sign-in, draft creation/editing and deployment review. Its opt-in Go test fixture uses actual authentication/routes/library on a random loopback port, fictional inventory, and a runner that rejects container operations. It stops before a confirmed deployment; it never connects to Docker.
+
+```sh
+bash scripts/check-browser.sh
+```
+
+The helper uses empty project-local npm configs, the committed lockfile, a dependency audit, and ignored `.local/browser-smoke/` caches, browser profiles, fixture data and results. It does not introduce a frontend build or runtime dependency. Set `DOCKSPIRE_BROWSER_EXECUTABLE` to an existing Chrome/Chromium executable to avoid downloading a browser. The helper's optional `--with-deps` flag installs OS browser dependencies and is intended for a disposable Linux runner; do not use it on another host without approving that system change. CI uses it only on ephemeral hosted Linux runners.
 
 ## Container build and checks
 

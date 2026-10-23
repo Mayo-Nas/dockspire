@@ -39,23 +39,24 @@ func (l *stackLibrary) prepareTakeover(ctx context.Context, name string) (Update
 		return plan, err
 	}
 	sourceFingerprint := ""
+	sourceFiles := files
 	if record.Takeover == nil {
-		preview, _, readErr := l.importPreview(ctx, name)
+		preview, source, readErr := l.importPreview(ctx, name)
 		if readErr != nil {
 			return plan, readErr
 		}
-		sourceFingerprint = preview.Fingerprint
+		sourceFingerprint, sourceFiles = preview.Fingerprint, source
 	} else {
 		source, readErr := l.takeoverSourceBundle(record.Takeover.SourceFile)
 		if readErr != nil {
 			return plan, readErr
 		}
-		sourceFingerprint = filesFingerprint(source)
-		if sourceFingerprint != record.Takeover.SourceFingerprint {
+		sourceFingerprint, sourceFiles = record.Takeover.SourceFingerprint, source
+		if !matchesStoredRevision(source, sourceFingerprint) {
 			return plan, errors.New("The authorized Portainer source changed during takeover; inspect both managers before recovery")
 		}
 	}
-	if sourceFingerprint != filesFingerprint(files) {
+	if filesFingerprint(sourceFiles) != filesFingerprint(files) {
 		return plan, errors.New("The Portainer source or authorized environment inputs changed; keep the running workload unchanged and review a fresh copy")
 	}
 	if err = takeoverShape(files["compose.yaml"]); err != nil {
@@ -117,7 +118,7 @@ func (l *stackLibrary) prepareTakeover(ctx context.Context, name string) (Update
 		if err != nil {
 			return plan, err
 		}
-		if filesFingerprint(plan.takeoverFiles) != record.Takeover.Revision {
+		if !matchesStoredRevision(plan.takeoverFiles, record.Takeover.Revision) {
 			return plan, errors.New("The selected takeover revision is damaged")
 		}
 		if err = l.checkTakeoverInventory(record, items, live, false); err != nil {
@@ -178,7 +179,8 @@ func (l *stackLibrary) prepareTakeover(ctx context.Context, name string) (Update
 	}
 	plan.recordVersion = recordStamp(record)
 	raw, _ := json.Marshal(identities)
-	plan.stamp = fingerprint(plan.recordVersion + "\x00" + plan.Revision + "\x00" + string(raw))
+	plan.exactRevision = filesFingerprint(plan.takeoverFiles)
+	plan.stamp = fingerprint(plan.recordVersion + "\x00" + plan.Revision + "\x00" + plan.exactRevision + "\x00" + filesFingerprint(sourceFiles) + "\x00" + string(raw))
 	return plan, nil
 }
 
@@ -220,7 +222,7 @@ func (l *stackLibrary) storeTakeoverRevision(record StackRecord, files map[strin
 		if readErr != nil {
 			return readErr
 		}
-		if filesFingerprint(existing) != record.ConfigRevision {
+		if !matchesStoredRevision(existing, record.ConfigRevision) {
 			return errors.New("The selected takeover revision is damaged")
 		}
 		return nil

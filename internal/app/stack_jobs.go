@@ -29,6 +29,7 @@ type UpdatePlan struct {
 	Comparison    *RevisionComparison `json:"comparison,omitempty"`
 	stamp         string
 	recordVersion string
+	exactRevision string
 	imageBefore   map[string]observedServiceImages
 }
 type StackJob struct {
@@ -106,12 +107,16 @@ func (l *stackLibrary) buildPlan(ctx context.Context, name, containerID string) 
 	if !record.managed() {
 		return UpdatePlan{}, errors.New("Imported copies require an explicitly confirmed, verified takeover before normal deployment")
 	}
-	revision, err := l.contentFingerprint(record)
+	revision, err := l.storedRevision(record)
 	if err != nil {
 		return UpdatePlan{}, err
 	}
 	plan := UpdatePlan{Name: name, Revision: revision, Kind: "deploy", Targets: []string{}, Services: record.Services, ContainerID: containerID}
 	plan.recordVersion = recordStamp(record)
+	plan.exactRevision, err = l.contentFingerprint(record)
+	if err != nil {
+		return plan, err
+	}
 	if record.DeployedAt != "" {
 		plan.Kind = "update"
 	}
@@ -148,7 +153,8 @@ func (l *stackLibrary) buildPlan(ctx context.Context, name, containerID string) 
 		if plan.Service == "" {
 			return plan, errors.New("The selected container changed or no longer exists; refresh inventory")
 		}
-		if record.AppliedRevision != revision {
+		currentFiles, readErr := l.content(record)
+		if readErr != nil || !l.appliedMatches(record, currentFiles) {
 			return plan, errors.New("The saved definition has unapplied changes; review and update the whole stack first")
 		}
 		plan.Kind = "service-update"
@@ -174,7 +180,7 @@ func (l *stackLibrary) buildPlan(ctx context.Context, name, containerID string) 
 		identities = append(identities, strings.Join([]string{item.ID, item.Name, item.Image, item.State, item.Stack, item.Service, item.ComposeFiles, item.ComposeDirectory}, "\x00"))
 	}
 	material, _ := json.Marshal(identities)
-	plan.stamp = fingerprint(plan.recordVersion + "\x00" + string(material))
+	plan.stamp = fingerprint(plan.recordVersion + "\x00" + plan.exactRevision + "\x00" + string(material))
 	plan.imageBefore = l.observeImages(record, plan.Service, containers)
 	return plan, nil
 }

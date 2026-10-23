@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var hostPackageNames = []string{"docker-ce", "docker-ce-cli", "containerd.io", "docker-buildx-plugin", "docker-ce-rootless-extras", "docker-compose-plugin"}
@@ -28,13 +29,19 @@ type hostCommands interface {
 	Run(context.Context, string, ...string) ([]byte, error)
 }
 type systemHostCommands struct{}
-type boundedOutput struct{ bytes.Buffer }
+type boundedOutput struct {
+	buffer bytes.Buffer
+	cancel context.CancelFunc
+}
 
 func (b *boundedOutput) Write(p []byte) (int, error) {
-	if b.Len()+len(p) > 4<<20 {
+	if b.buffer.Len()+len(p) > 4<<20 {
+		if b.cancel != nil {
+			b.cancel()
+		}
 		return 0, errors.New("Command output exceeded limit")
 	}
-	return b.Buffer.Write(p)
+	return b.buffer.Write(p)
 }
 func (systemHostCommands) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
 	allowed := map[string]string{"dpkg-query": "/usr/bin/dpkg-query", "dpkg": "/usr/bin/dpkg", "apt-cache": "/usr/bin/apt-cache", "apt-mark": "/usr/bin/apt-mark", "apt-get": "/usr/bin/apt-get"}
@@ -45,13 +52,16 @@ func (systemHostCommands) Run(ctx context.Context, name string, args ...string) 
 	if name == "apt-get" && !allowedHostAPT(args) {
 		return nil, errors.New(hostUpdatesDisabled)
 	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	command := exec.CommandContext(ctx, binary, args...)
 	command.Env = []string{"PATH=/usr/sbin:/usr/bin:/sbin:/bin", "HOME=/root", "LANG=C", "LC_ALL=C", "DEBIAN_FRONTEND=noninteractive", "NEEDRESTART_MODE=l"}
-	var output boundedOutput
+	command.WaitDelay = 100 * time.Millisecond
+	output := boundedOutput{cancel: cancel}
 	command.Stdout = &output
 	command.Stderr = io.Discard
 	err := command.Run()
-	return output.Bytes(), err
+	return output.buffer.Bytes(), err
 }
 
 // Only index refreshes and the exact read-only simulation form are permitted.

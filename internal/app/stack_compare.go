@@ -128,7 +128,7 @@ func (l *stackLibrary) comparisonForPlan(plan UpdatePlan) (*RevisionComparison, 
 	if err != nil {
 		return nil, err
 	}
-	if filesFingerprint(current) != plan.Revision {
+	if filesFingerprint(current) != plan.exactRevision {
 		return nil, errors.New("The saved configuration changed; review it again")
 	}
 	c := &RevisionComparison{Status: "available", BaseRevision: record.AppliedRevision, Revision: plan.Revision, Changes: []ConfigurationChange{}}
@@ -185,7 +185,7 @@ func compareConfiguration(c *RevisionComparison, previous, current map[string]st
 			c.add(file, "File", presence(was), presence(now), "", "")
 		}
 	}
-	c.SourceOnly = c.Status == "available" && c.BaseRevision != c.Revision && len(c.Changes) == 0
+	c.SourceOnly = c.Status == "available" && filesFingerprint(previous) != filesFingerprint(current) && len(c.Changes) == 0
 	return c
 }
 

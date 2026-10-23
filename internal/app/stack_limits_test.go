@@ -13,6 +13,28 @@ import (
 
 // Re-execute the test binary as a fake Compose producer without a shell or Docker.
 func TestMain(m *testing.M) {
+	if strings.HasPrefix(filepath.Base(os.Args[0]), "compose-probe-") && len(os.Args) == 3 {
+		if os.Args[1] == "version" && os.Args[2] == "--short" {
+			_, _ = io.WriteString(os.Stdout, "2.40.3\n")
+			os.Exit(0)
+		}
+		help := map[string]string{"up": "--wait --wait-timeout", "pull": "--policy", "config": "--format string (json|yaml)"}
+		if strings.Contains(filepath.Base(os.Args[0]), "missing") {
+			help["up"] = "--wait"
+		}
+		if os.Args[2] == "--help" {
+			_, _ = io.WriteString(os.Stdout, help[os.Args[1]])
+			os.Exit(0)
+		}
+		os.Exit(1)
+	}
+	if len(os.Args) > 2 && os.Args[1] == "probe-fixture" {
+		if os.Args[2] == "overflow" {
+			_, _ = io.WriteString(os.Stdout, strings.Repeat("x", (32<<10)+1))
+		}
+		time.Sleep(30 * time.Second)
+		os.Exit(0)
+	}
 	if len(os.Args) > 2 && os.Args[1] == "--project-name" && os.Args[2] == "output-fixture" {
 		mode := os.Args[len(os.Args)-1]
 		if mode == "small" {
