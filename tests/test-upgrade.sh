@@ -142,7 +142,7 @@ for scenario in http https http-passwordless https-passwordless; do
     record=$(api "$base/api/stacks/${stack_names[$index]}" | jq -Sc .)
     if [[ "$phase" == candidate ]]; then
      # Only the optimistic editor token changes. All stored metadata and IDs remain exact.
-     [[ $(jq -Sc 'del(.fingerprint)' <<< "$record") == $(jq -Sc 'del(.fingerprint)' <<< "${baseline_records[$index]}") ]]
+     [[ $(jq -Sc 'del(.fingerprint)' <<< "$record") == "$(jq -Sc 'del(.fingerprint)' <<< "${baseline_records[$index]}")" ]]
      [[ $(jq -r '.fingerprint' <<< "$record") == $(expected_exact_token "${stack_names[$index]}") ]]
     else
      [[ "$record" == "${baseline_records[$index]}" ]]
