@@ -63,7 +63,11 @@ func (l *stackLibrary) buildLifecyclePlan(ctx context.Context, name, id, action 
 	if _, ok := l.source.(lifecycleController); !ok {
 		return plan, errors.New("Container lifecycle controls are unavailable on this connection")
 	}
-	plan.Revision, err = l.contentFingerprint(record)
+	plan.Revision, err = l.storedRevision(record)
+	if err != nil {
+		return plan, err
+	}
+	plan.exactRevision, err = l.contentFingerprint(record)
 	if err != nil {
 		return plan, err
 	}
@@ -113,7 +117,7 @@ func (l *stackLibrary) buildLifecyclePlan(ctx context.Context, name, id, action 
 	}
 	sort.Strings(identities)
 	raw, _ := json.Marshal(identities)
-	plan.stamp = fingerprint(plan.recordVersion + "\x00" + string(raw))
+	plan.stamp = fingerprint(plan.recordVersion + "\x00" + plan.exactRevision + "\x00" + string(raw))
 	return plan, nil
 }
 func (d *dockerSource) ControlContainer(ctx context.Context, id, action string) error {
@@ -184,7 +188,7 @@ func (l *stackLibrary) runLifecycle(ctx context.Context, job StackJob, plan Upda
 	for _, target := range plan.Containers {
 		// Recheck each exact ID before its write; preceding actions must not invalidate later targets.
 		current, err = l.buildLifecyclePlan(ctx, plan.Name, target.ID, plan.Kind)
-		if err != nil || current.Revision != plan.Revision || len(current.Containers) != 1 || current.Containers[0].stamp != target.stamp {
+		if err != nil || current.Revision != plan.Revision || current.exactRevision != plan.exactRevision || len(current.Containers) != 1 || current.Containers[0].stamp != target.stamp {
 			fail("A targeted container changed before its action.")
 			return
 		}

@@ -71,9 +71,14 @@ func (l *stackLibrary) verifiedRevision(name, revision string) (map[string]strin
 	if !revisionName.MatchString(revision) {
 		return nil, "", errors.New("Invalid configuration revision")
 	}
+	record, err := l.load(name)
+	if err != nil {
+		return nil, "", err
+	}
 	for _, directory := range []string{"", revision} {
 		files, err := l.safeRevisionContent(StackRecord{Name: name, ConfigRevision: directory})
-		if err == nil && filesFingerprint(files) == revision {
+		valid := err == nil && ((directory == "" && initialRevision(record, files) == revision) || (directory != "" && matchesStoredRevision(files, revision)))
+		if valid {
 			return files, directory, nil
 		}
 	}
@@ -96,11 +101,14 @@ func (l *stackLibrary) revisionRowsLocked(name string) (StackRecord, []Configura
 	if err != nil {
 		return record, nil, err
 	}
-	selected := filesFingerprint(current)
-	if record.ConfigRevision != "" && selected != record.ConfigRevision {
+	selected, selectErr := l.storedRevision(record)
+	if selectErr != nil {
+		return record, nil, selectErr
+	}
+	if record.ConfigRevision != "" && !matchesStoredRevision(current, record.ConfigRevision) {
 		return record, nil, errors.New("Selected configuration revision is damaged")
 	}
-	rows := []ConfigurationRevision{{Revision: filesFingerprint(initial), StoredAt: record.CreatedAt, Initial: true}}
+	rows := []ConfigurationRevision{{Revision: initialRevision(record, initial), StoredAt: record.CreatedAt, Initial: true}}
 	base, _ := l.directory(name)
 	dir := filepath.Join(base, "revisions")
 	if info, err := os.Lstat(dir); !os.IsNotExist(err) && (err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0) {
@@ -230,7 +238,7 @@ func (l *stackLibrary) restoreRevision(ctx context.Context, name, revision, expe
 	if _, _, err := l.verifiedRevision(name, revision); err != nil {
 		return record, err // A concurrent reviewed cleanup may have removed it.
 	}
-	record.ConfigRevision, record.Fingerprint = directory, revision
+	record.ConfigRevision, record.Fingerprint = directory, filesFingerprint(files)
 	record.Services, record.Warnings, record.EnvironmentNames = validated.Services, validated.Warnings, validated.EnvironmentNames
 	record.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
 	record.EditVersion++

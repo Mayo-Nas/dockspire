@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"os"
-	"os/exec"
 	"regexp"
 	"strings"
 	"time"
@@ -64,10 +63,27 @@ func checkComposeBinary(ctx context.Context, binary string) DependencyCheck {
 	if err != nil || !info.Mode().IsRegular() {
 		return result
 	}
-	command := exec.CommandContext(ctx, binary, "version", "--short")
-	command.Env = []string{"DOCKER_CONFIG=/nonexistent", "HOME=/nonexistent", "PATH=/usr/bin:/bin"}
-	raw, err := command.Output()
-	return composeVersionResult(raw, err)
+	raw, err := probeCompose(ctx, binary, "version", "--short")
+	result = composeVersionResult(raw, err)
+	if result.State != "ready" {
+		return result
+	}
+	for _, probe := range []struct {
+		command string
+		flags   []string
+	}{
+		{"up", []string{"--wait", "--wait-timeout"}},
+		{"pull", []string{"--policy"}},
+		{"config", []string{"--format"}},
+	} {
+		help, err := probeCompose(ctx, binary, probe.command, "--help")
+		if err != nil || !composeHelpSupports(help, probe.flags...) || (probe.command == "config" && !strings.Contains(strings.ToLower(string(help)), "json")) {
+			result.State, result.Message = "incompatible", "Compose lacks required up --wait/--wait-timeout, pull --policy, or config --format json support; install a current Compose plugin"
+			return result
+		}
+	}
+	result.Message = "Compose supports the deployment and JSON validation options required by Dockspire"
+	return result
 }
 func composeVersionResult(raw []byte, err error) DependencyCheck {
 	result := DependencyCheck{Name: "Docker Compose", State: "unavailable", Message: "Compose could not run; check executable permissions and platform compatibility"}

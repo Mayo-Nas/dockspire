@@ -2,13 +2,15 @@
 
 v0.1.2 defaults to HTTP on 8787 with tokenless first-administrator setup. It needs Docker Engine and the modern Compose plugin, not host Go/Node. Only Linux amd64 is supported. Existing v0.1.0 installations keep their HTTPS 9443 configuration and data unchanged; read [upgrade and rollback](#upgrade-and-rollback) before changing an existing installation.
 
+Current main includes unreleased public-readiness fixes and a newer configuration/archive format; build current source below to try them. The versioned v0.1.2 instructions remain historical and do not install those changes. First public release tags must come from licensed main; no new public image is implied by this guide.
+
 ## Install v0.1.2
 
 Use these commands once the [v0.1.2 release notes](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.1.2) record the verified private image and immutable digest. Preparing source or a tag does not publish the image. v0.1.2 refreshes branding and uses Go 1.27.3 for the application and bundled Compose; installation, access and saved-data formats are unchanged from v0.1.1.
 
 Use a fresh Linux amd64 host without an existing Dockspire installation or `dockspire_data` volume. The matching template fixes project `dockspire` and volume `dockspire_data`; another checkout does not isolate an existing installation. HTTP exposes passwords and sessions without encryption, and any reachable client can claim first administrator while setup is open. Restrict access to a trusted management network.
 
-The repository and GHCR image are private. Use an authenticated GitHub CLI account with repository access. Registry pulls require package access and a token with `read:packages`; run `docker login ghcr.io --username YOUR_GITHUB_USER` and enter that token at its password prompt. Keep tokens out of commands, Compose files and chat. See [GitHub registry authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
+The historical v0.1.2 release notes describe private distribution. Source repository and package visibility are independent; authenticate GitHub CLI when source access requires it. If the package remains private, registry pulls require package access and a token with `read:packages`; run `docker login ghcr.io --username YOUR_GITHUB_USER` and enter that token at its password prompt. Keep tokens out of commands, Compose files and chat. See [GitHub registry authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 
 ```sh
 gh repo clone Mayo-Nas/dockspire -- --branch v0.1.2
@@ -33,7 +35,7 @@ export DOCKSPIRE_IMAGE=dockspire:local
 docker compose up -d --pull never
 ```
 
-Private source requires an authenticated `gh` account with repository access. Already cloned? Start at `docker build` from the repository root. Docker downloads its build toolchain/dependencies. Keep subsequent Compose commands in `deploy/`; after reconnecting, return there and export `DOCKSPIRE_IMAGE=dockspire:local` again. Default Compose discovery loads `compose.override.yaml` beside `compose.yaml`.
+When the repository is public, anonymous `git clone --branch main https://github.com/Mayo-Nas/dockspire.git` can replace the `gh repo clone` command above. Private source requires authenticated source access; private packages require separate registry access. Already cloned? Start at `docker build` from the repository root. Docker downloads its build toolchain/dependencies. Keep subsequent Compose commands in `deploy/`; after reconnecting, return there and export `DOCKSPIRE_IMAGE=dockspire:local` again. Default Compose discovery loads `compose.override.yaml` beside `compose.yaml`.
 
 Alternatively, manually select a matching built image in `.env` beside `compose.yaml`; preserve existing settings:
 
@@ -47,7 +49,7 @@ DOCKSPIRE_IMAGE=dockspire:local
 # DOCKSPIRE_BIND_ADDRESS=127.0.0.1
 ```
 
-`DOCKSPIRE_IMAGE` is required; a shell export overrides `.env`. An unset/empty value produces the Compose image-selection error before startup. Downloading Compose alone does not provide an image. The HTTP template accepts IP addresses and localhost by default. DNS access requires an exact `http://...` external URL; forwarded headers are ignored. With `DOCKSPIRE_HTTP_PORT=8788`, use `http://VM-IP:8788`. Portainer's 9443 can remain running.
+`DOCKSPIRE_IMAGE` is required; a shell export overrides `.env`. An unset/empty value produces the Compose image-selection error before startup. Downloading Compose alone does not provide an image. The HTTP template accepts IP addresses and localhost by default. DNS access requires an exact `http://...` external URL; forwarded headers are ignored. With `DOCKSPIRE_HTTP_PORT=8788`, use `http://VM-IP:8788`.
 
 ## Create the administrator
 
@@ -143,6 +145,6 @@ docker compose up -d --no-deps app
 docker compose ps
 ```
 
-Sign in again and check inventory, saved stacks and installation status. Preserve the Compose project, volume name and mount. Upgrading the manager does not require restarting managed workloads. Rollback selects the retained previous image and runs `docker compose up -d --no-deps --pull never app`; follow the release's data-restore instructions if it changes the storage format. This change does not migrate the library format.
+Sign in again and check inventory, saved stacks and installation status. Preserve the Compose project, volume name and mount. Upgrading the manager does not require restarting managed workloads. Current source retains legacy bundle IDs but writes new presence-aware identities and version-2 library archives. After any new-format write, do not point an older image at that upgraded library. Stop the app, retain the upgraded data separately, and restore the private pre-upgrade whole-volume backup into a fresh isolated volume/path with the old image. Preserve administrator/TLS state and verify recovery before resuming operations. Image-only rollback is insufficient after a format change; workload data is backed up/restored separately.
 
 Legacy preview and offline archive distribution have been retired from this source tree. Existing `stacklane-preview` installations use different project/data/access settings: retain their deployed Compose files and data mounts. This cleanup does not migrate or rename installations. Updating one needs a reviewed deployment preserving its existing project, data, ports and administrator/TLS state; do not start the current template against an empty volume and assume the old library was migrated. Historical templates remain in Git history.

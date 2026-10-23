@@ -6,6 +6,8 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    - cron: '21 7 * * 1'
 
 permissions:
   contents: read
@@ -73,6 +75,11 @@ jobs:
           node tests/test-stacks.mjs
           node tests/test-revisions.mjs
 
+      - name: Run real-browser smoke test
+        if: runner.os == 'Linux'
+        shell: bash
+        run: bash scripts/check-browser.sh --with-deps
+
       - name: Check installation scripts with fixtures
         if: runner.os == 'Linux'
         run: |
@@ -81,6 +88,34 @@ jobs:
             bash -n "$script"
           done
           sh tests/test-installation.sh
+          bash tests/test-release-policy.sh
+
+  source-secrets:
+    name: Scan source history
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GOTOOLCHAIN: local
+      GOTELEMETRY: 'off'
+      GOENV: 'off'
+    steps:
+      - name: Check out complete source history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up pinned Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.3'
+      - name: Install pinned scanner and scan with full redaction
+        shell: bash
+        run: |
+          set -euo pipefail
+          GOBIN="$RUNNER_TEMP/security-bin" go install -trimpath github.com/zricethezav/gitleaks/v8@v8.30.1
+          printf '[extend]\nuseDefault = true\n' > "$RUNNER_TEMP/gitleaks.toml"
+          : > "$RUNNER_TEMP/gitleaks-empty-ignore"
+          "$RUNNER_TEMP/security-bin/gitleaks" git --redact=100 --no-banner --ignore-gitleaks-allow --config "$RUNNER_TEMP/gitleaks.toml" --gitleaks-ignore-path "$RUNNER_TEMP/gitleaks-empty-ignore" --log-opts='--all --full-history' .
 
   container:
     name: Check Linux container installation
@@ -111,8 +146,8 @@ jobs:
           bash scripts/check-image-security.sh dockspire:ci "$(go env GOPATH)/bin/govulncheck"
 
   upgrade:
-    name: Check private release upgrade and rollback
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    name: Check release upgrade and rollback
+    if: github.repository == 'Mayo-Nas/dockspire' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -125,9 +160,10 @@ jobs:
           persist-credentials: false
       - name: Build upgrade candidate
         run: docker build --platform linux/amd64 -t dockspire:upgrade .
-      - name: Pull verified private upgrade baseline
+      - name: Pull verified upgrade baseline
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCKSPIRE_BASELINE_PACKAGE_VISIBILITY: ${{ vars.DOCKSPIRE_BASELINE_PACKAGE_VISIBILITY || 'private' }}
         run: bash scripts/pull-upgrade-baseline.sh
       - name: Verify disposable upgrade and rollback without registry credentials
         shell: bash

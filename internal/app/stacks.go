@@ -31,22 +31,23 @@ var projectName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,62}$`)
 var portainerFile = regexp.MustCompile(`^/data/compose/([0-9]+)/docker-compose\.ya?ml$`)
 
 type StackRecord struct {
-	Takeover              *TakeoverState     `json:"takeover,omitempty"`
-	Name                  string             `json:"name"`
-	Origin                string             `json:"origin"`
-	CreatedAt             string             `json:"createdAt"`
-	DeployedAt            string             `json:"deployedAt,omitempty"`
-	SourceDirectory       string             `json:"sourceDirectory,omitempty"`
-	Fingerprint           string             `json:"fingerprint"`
-	EnvironmentNames      []string           `json:"environmentNames"`
-	Warnings              []string           `json:"warnings"`
-	Services              []ServiceSummary   `json:"services"`
-	ConfigRevision        string             `json:"configRevision,omitempty"`
-	AppliedRevision       string             `json:"appliedRevision,omitempty"`
-	UpdatedAt             string             `json:"updatedAt,omitempty"`
-	LastDeploymentAttempt *DeploymentAttempt `json:"lastDeploymentAttempt,omitempty"`
-	Unavailable           bool               `json:"unavailable,omitempty"`
-	EditVersion           uint64             `json:"editVersion,omitempty"`
+	Takeover                  *TakeoverState     `json:"takeover,omitempty"`
+	Name                      string             `json:"name"`
+	Origin                    string             `json:"origin"`
+	CreatedAt                 string             `json:"createdAt"`
+	DeployedAt                string             `json:"deployedAt,omitempty"`
+	SourceDirectory           string             `json:"sourceDirectory,omitempty"`
+	Fingerprint               string             `json:"fingerprint"`
+	EnvironmentNames          []string           `json:"environmentNames"`
+	Warnings                  []string           `json:"warnings"`
+	Services                  []ServiceSummary   `json:"services"`
+	InitialFingerprintVersion int                `json:"initialFingerprintVersion,omitempty"`
+	ConfigRevision            string             `json:"configRevision,omitempty"`
+	AppliedRevision           string             `json:"appliedRevision,omitempty"`
+	UpdatedAt                 string             `json:"updatedAt,omitempty"`
+	LastDeploymentAttempt     *DeploymentAttempt `json:"lastDeploymentAttempt,omitempty"`
+	Unavailable               bool               `json:"unavailable,omitempty"`
+	EditVersion               uint64             `json:"editVersion,omitempty"`
 }
 
 // An attempt is recorded before Compose may change containers. It is not proof of success.
@@ -63,6 +64,7 @@ type StackDefinition struct {
 	StackRecord
 	Compose          string `json:"compose"`
 	RecoveryRequired bool   `json:"recoveryRequired,omitempty"`
+	UnappliedChanges bool   `json:"unappliedChanges,omitempty"`
 }
 type stackInput struct {
 	Name        string `json:"name"`
@@ -196,7 +198,7 @@ func (l *stackLibrary) load(name string) (StackRecord, error) {
 	if !validTakeover(record.Takeover) || (record.Takeover != nil && (record.Origin != "portainer" || record.LastDeploymentAttempt == nil)) {
 		return StackRecord{}, errors.New("Saved takeover metadata is invalid")
 	}
-	if record.Unavailable || (record.ConfigRevision != "" && !revisionName.MatchString(record.ConfigRevision)) {
+	if record.Unavailable || (record.InitialFingerprintVersion != 0 && record.InitialFingerprintVersion != 2) || (record.ConfigRevision != "" && !revisionName.MatchString(record.ConfigRevision)) {
 		return StackRecord{}, errors.New("Saved stack metadata is invalid")
 	}
 	if attempt := record.LastDeploymentAttempt; attempt != nil {
@@ -252,7 +254,11 @@ func (l *stackLibrary) definition(name string) (StackDefinition, error) {
 	if err != nil {
 		return StackDefinition{}, err
 	}
-	return StackDefinition{StackRecord: record, Compose: redacted, RecoveryRequired: l.needsRecovery(record)}, nil
+	files, err := l.content(record)
+	if err != nil {
+		return StackDefinition{}, err
+	}
+	return StackDefinition{StackRecord: record, Compose: redacted, RecoveryRequired: l.needsRecovery(record), UnappliedChanges: record.DeployedAt != "" && !l.appliedMatches(record, files)}, nil
 }
 func fingerprint(raw string) string {
 	sum := sha256.Sum256([]byte(raw))
@@ -501,7 +507,7 @@ func (l *stackLibrary) validateBundle(ctx context.Context, name string, files ma
 			}
 		}
 	}
-	return StackRecord{Name: name, Origin: "new", CreatedAt: time.Now().UTC().Format(time.RFC3339), Fingerprint: fingerprint(files["compose.yaml"]), EnvironmentNames: names, Warnings: warnings, Services: services}, nil
+	return StackRecord{InitialFingerprintVersion: 2, Name: name, Origin: "new", CreatedAt: time.Now().UTC().Format(time.RFC3339), Fingerprint: filesFingerprint(files), EnvironmentNames: names, Warnings: warnings, Services: services}, nil
 }
 func (l *stackLibrary) create(ctx context.Context, input stackInput) (StackRecord, error) {
 	dir, err := l.directory(input.Name)
@@ -555,6 +561,7 @@ func (l *stackLibrary) saveNew(record StackRecord, compose string, files map[str
 		}
 		bundle[name] = body
 	}
+	record.InitialFingerprintVersion = 2
 	metadata, err := json.MarshalIndent(record, "", "  ")
 	if err != nil {
 		return errors.New("Cannot prepare stack metadata")
@@ -646,11 +653,8 @@ func (l *stackLibrary) importPreview(ctx context.Context, name string) (StackDef
 	if len(files) == 0 {
 		warnings = append(warnings, "No environment files were copied. Values stored only in Portainer's database are not imported")
 	}
-	material := string(raw)
-	for _, name := range []string{".env", "stack.env"} {
-		material += "\x00" + name + "\x00" + files[name]
-	}
-	record := StackRecord{Name: name, Origin: "portainer", CreatedAt: time.Now().UTC().Format(time.RFC3339), SourceDirectory: originalDirectory, Fingerprint: fingerprint(material), EnvironmentNames: names, Warnings: warnings, Services: services}
+	files["compose.yaml"] = string(raw)
+	record := StackRecord{InitialFingerprintVersion: 2, Name: name, Origin: "portainer", CreatedAt: time.Now().UTC().Format(time.RFC3339), SourceDirectory: originalDirectory, Fingerprint: filesFingerprint(files), EnvironmentNames: names, Warnings: warnings, Services: services}
 	files["compose.yaml"] = string(raw)
 	return StackDefinition{StackRecord: record, Compose: redacted}, files, nil
 }

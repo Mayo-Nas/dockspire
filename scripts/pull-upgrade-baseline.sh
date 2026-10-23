@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# Trusted hosted job only. Pull an immutable private baseline, never a mutable tag.
+# Trusted canonical-main job only. Verify explicit package visibility and immutable baseline.
 set -euo pipefail
 : "${GH_TOKEN:?Hosted package-read token required}"
 : "${GITHUB_ACTOR:?Hosted actor required}"
 : "${RUNNER_TEMP:?Hosted temporary directory required}"
-[[ "${GITHUB_REPOSITORY:-}" == Mayo-Nas/dockspire ]]
+[[ "${GITHUB_REPOSITORY:-}" == Mayo-Nas/dockspire && "${GITHUB_REF:-}" == refs/heads/main ]]
+expected_visibility=${DOCKSPIRE_BASELINE_PACKAGE_VISIBILITY:-private}
+[[ "$expected_visibility" == private || "$expected_visibility" == public ]]
 previous_digest=sha256:4fd7ba7c829c48087d6f76883d7c553c33a4e46737d44583580d5716b2b4303c
 package=users/Mayo-Nas/packages/container/dockspire
-gh api "$package" | jq -e '.visibility == "private" and .package_type == "container" and .name == "dockspire" and (.repository == null or .repository.full_name == "Mayo-Nas/dockspire")' >/dev/null
+gh api "$package" | jq -e --arg visibility "$expected_visibility" '.visibility == $visibility and .package_type == "container" and .name == "dockspire" and (.repository == null or .repository.full_name == "Mayo-Nas/dockspire")' >/dev/null
 gh api --paginate --slurp "$package/versions?per_page=100" | jq -e --arg digest "$previous_digest" '[.[][] | select(.metadata.container.tags | index("v0.1.1")) | .name] == [$digest]' >/dev/null
 registry_config=$(mktemp -d "$RUNNER_TEMP/dockspire-upgrade-registry.XXXXXX")
 export DOCKER_CONFIG="$registry_config"

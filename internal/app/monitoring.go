@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,7 +14,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 )
 
 const maxLogBytes = 256 << 10
@@ -231,88 +229,7 @@ func (d *dockerSource) Logs(ctx context.Context, id string, options LogOptions) 
 		return result, err
 	}
 	defer response.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(response.Body, maxLogBytes+1))
-	if err != nil {
-		return result, errors.New("Container log retrieval was interrupted; retry the view")
-	}
-	return decodeContainerLogs(raw, details.TTY, options.Tail)
-}
-func decodeContainerLogs(raw []byte, tty bool, tail int) (ContainerLogs, error) {
-	result := ContainerLogs{Lines: []LogLine{}, CheckedAt: time.Now().UTC().Format(time.RFC3339Nano)}
-	byteLimited := len(raw) > maxLogBytes
-	if byteLimited {
-		raw = raw[:maxLogBytes]
-		result.Truncated = true
-	}
-	pending := map[string]string{}
-	appendLine := func(stream, text string) {
-		line := LogLine{Stream: stream, Text: strings.Map(func(r rune) rune {
-			if unicode.IsControl(r) && r != '\t' {
-				return -1
-			}
-			return r
-		}, text)}
-		if stamp, text, ok := strings.Cut(line.Text, " "); ok {
-			if _, err := time.Parse(time.RFC3339Nano, stamp); err == nil {
-				line.Time = stamp
-				line.Text = text
-			}
-		}
-		result.Lines = append(result.Lines, line)
-		// Bound decoded-line memory as well as the raw Docker response.
-		if len(result.Lines) >= 2*tail {
-			copy(result.Lines, result.Lines[len(result.Lines)-tail:])
-			result.Lines = result.Lines[:tail]
-			result.Truncated = true
-		}
-	}
-	consume := func(stream string, data []byte) {
-		parts := strings.Split(pending[stream]+string(data), "\n")
-		for _, text := range parts[:len(parts)-1] {
-			appendLine(stream, text)
-		}
-		pending[stream] = parts[len(parts)-1]
-	}
-	if tty {
-		consume("console", raw)
-	} else {
-		for len(raw) > 0 {
-			if len(raw) < 8 {
-				if byteLimited {
-					break
-				}
-				return result, errors.New("Docker returned an incomplete log frame")
-			}
-			if (raw[0] != 1 && raw[0] != 2) || raw[1] != 0 || raw[2] != 0 || raw[3] != 0 {
-				return result, errors.New("Docker returned an unsupported log format")
-			}
-			size := uint64(binary.BigEndian.Uint32(raw[4:8]))
-			stream := "stdout"
-			if raw[0] == 2 {
-				stream = "stderr"
-			}
-			raw = raw[8:]
-			if size > uint64(len(raw)) {
-				if !byteLimited {
-					return result, errors.New("Docker returned an incomplete log frame")
-				}
-				consume(stream, raw)
-				break
-			}
-			consume(stream, raw[:int(size)])
-			raw = raw[int(size):]
-		}
-	}
-	for _, stream := range []string{"stdout", "stderr", "console"} {
-		if pending[stream] != "" {
-			appendLine(stream, pending[stream])
-		}
-	}
-	if len(result.Lines) > tail {
-		result.Lines = result.Lines[len(result.Lines)-tail:]
-		result.Truncated = true
-	}
-	return result, nil
+	return decodeContainerLogStream(response.Body, details.TTY, options.Tail)
 }
 
 type dockerCPU struct {

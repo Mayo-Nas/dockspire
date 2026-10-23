@@ -52,7 +52,7 @@ let archiveType = 'application/zip';
 let archiveLength = '9';
 let delayedBlob;
 const record = {
-  name: 'example', origin: 'new', compose: 'services:\n  web:\n    image: fixture\n', fingerprint: 'fixture-revision',
+  name: 'example', origin: 'new', appliedRevision: 'legacy-alias', unappliedChanges: false, compose: 'services:\n  web:\n    image: fixture\n', fingerprint: 'fixture-revision',
   services: [{ name: 'web', image: 'fixture' }], warnings: [], environmentNames: [], lastDeploymentAttempt: { operationId: 'fixture-attempt' },
 };
 const job = index => ({ id: `fixture-${index}`, name: 'example', status: 'failed', kind: 'deploy', startedAt: '2026-10-16T12:00:00Z' });
@@ -137,6 +137,12 @@ assert.equal(buttons().length, 0);
 recoveryRequired = false;
 await context.window.stackUI.open({ name: 'example', definition: 'Saved' });
 assert(buttons().some(button => button.textContent === 'Review stack update'));
+assert(!texts(body).some(text => text.includes('unapplied changes')));
+record.unappliedChanges = true;
+await context.window.stackUI.open({ name: 'example', definition: 'Saved' });
+assert(texts(body).some(text => text.includes('unapplied changes')));
+record.unappliedChanges = false;
+await context.window.stackUI.open({ name: 'example', definition: 'Saved' });
 
 pendingPage = {};
 const loading = buttons().find(button => button.textContent === 'Load older operations').events.click();
