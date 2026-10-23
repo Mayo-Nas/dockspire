@@ -2,7 +2,37 @@
 # Synthetic data only, no Docker socket. Old -> candidate -> restored-old -> preserved-candidate.
 set -Eeuo pipefail
 # Emit fixture coordinates only: commands, payloads and authentication stay private.
-trap 'printf "Upgrade fixture failed: line=%s scenario=%s phase=%s\n" "$LINENO" "${scenario:-preflight}" "${phase:-preflight}" >&2' ERR
+fixture_failure() {
+ local line=$1 status=$2 identity='' state=unknown code=unknown oom=false logs='' category=unclassified
+ trap - ERR
+ printf 'Upgrade fixture failed: line=%s scenario=%s phase=%s\n' "$line" "${scenario:-preflight}" "${phase:-preflight}" >&2
+ if [[ "${container_created:-false}" == true && -n "${name:-}" && -n "${running_image:-}" ]]; then
+  identity=$(timeout --kill-after=1s 3s docker inspect --format '{{index .Config.Labels "io.dockspire.upgrade-test"}} {{.Image}}' "$name" 2>/dev/null) || identity=''
+  if [[ "$identity" == "$owner $running_image" ]]; then
+   identity=$(timeout --kill-after=1s 3s docker inspect --format '{{.State.Status}} {{.State.ExitCode}} {{.State.OOMKilled}}' "$name" 2>/dev/null) || identity=''
+   read -r state code oom <<< "$identity" || true
+   case "$state" in created|running|paused|restarting|removing|exited|dead) ;; *) state=unknown ;; esac
+   [[ "$code" =~ ^[0-9]+$ ]] || code=unknown
+   # Logs remain in bounded memory. Never print raw startup text or values.
+   logs=$(timeout --kill-after=1s 3s docker logs --tail 20 "$name" 2>&1 | head -c 65536) || true
+   if [[ "$oom" == true ]]; then category=memory-limit; else
+    case "$logs" in
+     *'Administrator file missing or unsafe;'*) category=admin-file-safety ;;
+     *'Invalid administrator file; refusing to start'*) category=admin-format ;;
+     *'Choose a real private data directory'*) category=data-directory ;;
+     *'Cannot open administrator file'*) category=admin-open ;;
+     *'permission denied'*) category=filesystem-permission ;;
+     *'read-only file system'*) category=filesystem-readonly ;;
+     *'address already in use'*) category=listen-address ;;
+     *TLS*|*tls*) category=tls-startup ;;
+    esac
+   fi
+   printf 'Upgrade fixture container: state=%s exit=%s category=%s\n' "$state" "$code" "$category" >&2
+  fi
+ fi
+ exit "$status"
+}
+trap 'fixture_failure "$LINENO" "$?"' ERR
 old_image=${1:?Usage: test-upgrade.sh OLD_IMAGE_ID NEW_IMAGE_ID NEW_VERSION}
 new_image=${2:?Missing candidate image ID}
 new_version=${3:?Missing candidate version}
