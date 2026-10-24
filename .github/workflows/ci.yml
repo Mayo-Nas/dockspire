@@ -6,6 +6,15 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      expected_ref:
+        description: 'Exact reviewed refs/heads/... for an off-main upgrade check'
+        type: string
+        required: false
+      expected_commit:
+        description: 'Exact reviewed 40-character HEAD for an off-main upgrade check'
+        type: string
+        required: false
   schedule:
     - cron: '21 7 * * 1'
 
@@ -89,6 +98,8 @@ jobs:
           done
           sh tests/test-installation.sh
           bash tests/test-release-policy.sh
+          bash tests/test-upgrade-baseline-policy.sh
+          bash tests/test-upgrade-history.sh
 
   source-secrets:
     name: Scan source history
@@ -147,17 +158,41 @@ jobs:
 
   upgrade:
     name: Check release upgrade and rollback
-    if: github.repository == 'Mayo-Nas/dockspire' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    env:
+      DOCKSPIRE_REVIEWED_REF: ${{ inputs.expected_ref }}
+      DOCKSPIRE_REVIEWED_COMMIT: ${{ inputs.expected_commit }}
+    if: >-
+      github.repository == 'Mayo-Nas/dockspire' &&
+      github.event_name != 'pull_request' && github.event_name != 'pull_request_target' &&
+      ((github.ref == 'refs/heads/main' && github.event_name != 'workflow_dispatch') ||
+       (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' &&
+        github.actor == 'Mayo-Nas' && github.triggering_actor == 'Mayo-Nas') ||
+       (github.event_name == 'workflow_dispatch' && github.actor == 'Mayo-Nas' &&
+        github.triggering_actor == 'Mayo-Nas' && github.ref_type == 'branch' &&
+        startsWith(inputs.expected_ref, 'refs/heads/') && inputs.expected_ref != 'refs/heads/main' &&
+        inputs.expected_ref == github.ref && inputs.expected_commit == github.sha))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
       packages: read
     steps:
-      - name: Check out trusted main
+      - name: Check out selected immutable commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
+      - name: Verify selected source before package access
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          bash scripts/pull-upgrade-baseline.sh --check-trust
+      - name: Pull verified upgrade baseline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCKSPIRE_BASELINE_PACKAGE_VISIBILITY: ${{ vars.DOCKSPIRE_BASELINE_PACKAGE_VISIBILITY || 'private' }}
+        run: bash scripts/pull-upgrade-baseline.sh
       - name: Set up pinned Go for the isolated measurement probe
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -170,15 +205,17 @@ jobs:
         run: go build -mod=readonly -trimpath -o "$RUNNER_TEMP/dockspire-upgrade-probe" ./tests/upgrade-probe
       - name: Build upgrade candidate
         run: docker build --platform linux/amd64 -t dockspire:upgrade .
-      - name: Pull verified upgrade baseline
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCKSPIRE_BASELINE_PACKAGE_VISIBILITY: ${{ vars.DOCKSPIRE_BASELINE_PACKAGE_VISIBILITY || 'private' }}
-        run: bash scripts/pull-upgrade-baseline.sh
-      - name: Verify disposable upgrade and rollback without registry credentials
+      - name: Verify instrumented upgrade and rollback without registry credentials
         shell: bash
         run: |
           set -euo pipefail
           previous=$(docker image inspect --format '{{.Id}}' ghcr.io/mayo-nas/dockspire@sha256:4fd7ba7c829c48087d6f76883d7c553c33a4e46737d44583580d5716b2b4303c)
           candidate=$(docker image inspect --format '{{.Id}}' dockspire:upgrade)
           DOCKSPIRE_UPGRADE_PROBE="$RUNNER_TEMP/dockspire-upgrade-probe" bash tests/test-upgrade.sh "$previous" "$candidate" dev
+      - name: Verify original-entrypoint upgrade and rollback without registry credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          previous=$(docker image inspect --format '{{.Id}}' ghcr.io/mayo-nas/dockspire@sha256:4fd7ba7c829c48087d6f76883d7c553c33a4e46737d44583580d5716b2b4303c)
+          candidate=$(docker image inspect --format '{{.Id}}' dockspire:upgrade)
+          DOCKSPIRE_UPGRADE_PROBE= bash tests/test-upgrade.sh "$previous" "$candidate" dev

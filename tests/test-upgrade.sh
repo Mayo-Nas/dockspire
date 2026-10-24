@@ -117,6 +117,108 @@ checkpoint_metadata() {
   else printf 'Upgrade probe checkpoint: target=%s metadata=unavailable\n' "$target"; fi
  done
 }
+# Report only fixed schema names/counts; raw metadata values stay private.
+history_metadata_difference() {
+ if [[ ${#1} -gt 65536 || ${#2} -gt 65536 ]]; then
+  printf '%s\n' 'Upgrade history comparison: metadata_over_limit=true'
+  return
+ fi
+ jq -nr --argjson expected "$1" --argjson actual "$2" '
+  ($expected.revisions | sort_by(.revision)) as $before |
+  ($actual.revisions | sort_by(.revision)) as $after |
+  (($before | map(.revision)) == ($after | map(.revision))) as $ids |
+  "Upgrade history comparison: count_equal=\(($before|length)==($after|length)) revision_ids_equal=\($ids) order_equal=\(($expected.revisions|map(.revision))==($actual.revisions|map(.revision))) next_cursor_equal=\($expected.nextCursor==$actual.nextCursor) schema_equal=\(($expected|keys)==($actual|keys) and ($before|map(keys))==($after|map(keys)))",
+  (if $ids then
+   ["storedAt","initial","selected","applied","recovery"][] as $field |
+   [range(0; $before|length) | select($before[.][$field] != $after[.][$field])] as $changed |
+   select(($changed|length)>0) |
+   "Upgrade history field: field=\($field) changed=\($changed|length)" +
+   (if $field=="storedAt" then
+    " whole_seconds_equal=\(all($changed[]; . as $i |
+      ($before[$i].storedAt|type)=="string" and ($after[$i].storedAt|type)=="string" and
+      ($before[$i].storedAt|sub("\\.[0-9]+Z$";"Z"))==($after[$i].storedAt|sub("\\.[0-9]+Z$";"Z"))))"
+    else "" end)
+  else empty end)
+ ' 2>/dev/null || printf '%s\n' 'Upgrade history comparison: diagnostic_unavailable=true'
+}
+# End history comparison diagnostic.
+# Docker exports directory mtimes at whole-second precision. Derive rollback
+# expectations from the extracted original archive, never from the actual API.
+rollback_expected_history() {
+ local stack=$1 baseline=$2 ids actual_ids='' path revision stamp times='{}'
+ [[ "$stack" =~ ^[a-z0-9][a-z0-9_-]{0,62}$ && ${#baseline} -le 65536 ]] || return 1
+ ids=$(jq -er '
+  .revisions as $rows |
+  if ($rows|type)!="array" or ($rows|length)<2 or
+     ([$rows[]|select(.initial==true)]|length)!=1 or
+     ([$rows[].revision]|unique|length)!=($rows|length) or
+     any($rows[]; (.revision|test("^[0-9a-f]{64}$"))|not)
+  then error("Invalid fixture history") else
+   $rows[]|select(.initial!=true)|.revision
+  end' <<< "$baseline" 2>/dev/null) || return 1
+ [[ -d "$checkpoint/stacks/$stack/revisions" && ! -L "$checkpoint/stacks/$stack/revisions" ]] || return 1
+ for path in "$checkpoint/stacks/$stack/revisions"/*; do
+  [[ -e "$path" ]] || continue
+  revision=${path##*/}
+  [[ -d "$path" && ! -L "$path" && "$revision" =~ ^[0-9a-f]{64}$ ]] || return 1
+  actual_ids+="$revision"$'\n'
+ done
+ [[ $(printf '%s\n' "$ids" | LC_ALL=C sort) == "$(printf '%s' "$actual_ids" | LC_ALL=C sort)" ]] || return 1
+ while IFS= read -r revision; do
+  stamp=$(date -u --reference="$checkpoint/stacks/$stack/revisions/$revision" +'%Y-%m-%dT%H:%M:%S.%NZ') || return 1
+  [[ "$stamp" == *.000000000Z ]] || return 1
+  stamp="${stamp%.000000000Z}Z"
+  times=$(jq -nc --argjson times "$times" --arg revision "$revision" --arg stamp "$stamp" '$times+{($revision):$stamp}') || return 1
+ done <<< "$ids"
+ jq -Sc --argjson times "$times" '
+  def timekey: .storedAt |
+   capture("^(?<whole>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(?:\\.(?<fraction>[0-9]{1,9}))?Z$") |
+   .whole+"."+(((.fraction//"")+"000000000")[0:9]);
+  .revisions |= (map(
+   if .initial==true then . else
+    if $times[.revision] != (.storedAt|sub("\\.[0-9]+Z$";"Z")) then error("Archive time differs beyond transport precision")
+    else .storedAt=$times[.revision] end
+   end) | sort_by([timekey,.revision]) | reverse)
+ ' <<< "$baseline" 2>/dev/null
+}
+# End rollback history expectation.
+# Preserve the stopped source archive; the host view is never the restore source.
+checkpoint_container_owned() {
+ [[ "$container_created" == true ]] || return 1
+ [[ $(docker inspect --format '{{index .Config.Labels "io.dockspire.upgrade-test"}}' "$name") == "$owner" ]] || return 1
+ [[ $(docker inspect --format '{{.Image}}' "$name") == "$running_image" ]] || return 1
+}
+validate_checkpoint_archive() {
+ local archive=$1 entries types entry relative has_admin=false
+ entries=$(tar --list --absolute-names --quoting-style=escape --file "$archive" 2>/dev/null) || return 1
+ types=$(tar --list --verbose --numeric-owner --absolute-names --quoting-style=escape --file "$archive" 2>/dev/null) || return 1
+ while IFS= read -r entry; do
+  [[ "${entry:0:1}" == - || "${entry:0:1}" == d ]] || return 1
+ done <<< "$types"
+ while IFS= read -r entry; do
+  if [[ "$entry" == . || "$entry" == ./ ]]; then continue; fi
+  relative=${entry#./}
+  relative=${relative%/}
+  [[ "$relative" =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*$ && ${#relative} -le 512 ]] || return 1
+  case "/$relative/" in *"/../"*|*"/./"*|*"//"*) return 1 ;; esac
+  if [[ "$relative" == admin.json ]]; then has_admin=true; fi
+ done <<< "$entries"
+ "$has_admin" || return 1
+}
+save_checkpoint_archive() {
+ checkpoint_container_owned || return 1
+ (umask 077; docker cp "$name:/appdata/." - 2>/dev/null | head -c 33554433 > "$checkpoint_archive") || return 1
+ [[ $(stat -c '%s' "$checkpoint_archive") -le 33554432 ]] || return 1
+ validate_checkpoint_archive "$checkpoint_archive" || return 1
+ (umask 077; tar --extract --file "$checkpoint_archive" --directory "$checkpoint" --no-same-owner --no-same-permissions 2>/dev/null) || return 1
+}
+restore_checkpoint_archive() {
+ checkpoint_container_owned || return 1
+ # stdin is the original relative-content tar with its original numeric IDs/modes.
+ # Do not re-tar the host view or use -a (container-user ownership override).
+ docker cp - "$name:/appdata" < "$checkpoint_archive" >/dev/null || return 1
+}
+# End checkpoint archive helpers.
 # Fixture contents are ASCII and both environment files exist. Encode exactly
 # the new Go JSON/base64 identity, using the stopped pre-upgrade snapshot bytes.
 expected_exact_token() {
@@ -136,6 +238,7 @@ for scenario in http https http-passwordless https-passwordless; do
  volume="$name-data"
  rollback_volume="$name-rollback-data"
  checkpoint="$directory/$scenario-checkpoint"
+ checkpoint_archive="$directory/$scenario-checkpoint.tar"
  mkdir "$checkpoint"
  scheme=${scenario%-passwordless}
  passwordless=false
@@ -154,6 +257,7 @@ for scenario in http https http-passwordless https-passwordless; do
  stack_names=()
  baseline_records=()
  baseline_histories=()
+ rollback_histories=()
  candidate_records=()
  candidate_histories=()
  fingerprint=''
@@ -183,7 +287,7 @@ for scenario in http https http-passwordless https-passwordless; do
    "${command[@]}" >/dev/null
   container_created=true
   if [[ -n "$probe" ]]; then probe_context; fi
-  if [[ "$phase" == rollback ]]; then docker cp "$checkpoint/." "$name:/appdata"; fi
+  if [[ "$phase" == rollback ]]; then restore_checkpoint_archive; fi
   docker start "$name" >/dev/null
   port=$(docker port "$name" "$port_in/tcp" | sed -n 's/^127\.0\.0\.1://p')
   [[ "$port" =~ ^[0-9]+$ ]]
@@ -231,7 +335,13 @@ for scenario in http https http-passwordless https-passwordless; do
     else
      [[ "$record" == "${baseline_records[$index]}" ]]
     fi
-    [[ $(api "$base/api/stacks/${stack_names[$index]}/revisions" | jq -Sc .) == "${baseline_histories[$index]}" ]]
+    expected_history=${baseline_histories[$index]}
+    if [[ "$phase" == rollback ]]; then expected_history=${rollback_histories[$index]}; fi
+    current_history=$(api "$base/api/stacks/${stack_names[$index]}/revisions" | jq -Sc .)
+    if [[ "$current_history" != "$expected_history" ]]; then
+     history_metadata_difference "$expected_history" "$current_history"
+    fi
+    [[ "$current_history" == "$expected_history" ]]
    done
    if [[ "$phase" == rollback ]]; then
     [[ $(curl "${curl_args[@]}" -sS -o /dev/null -w '%{http_code}' -H "Cookie: $cookie" "$base/api/stacks/upgrade-candidate") == 400 ]]
@@ -272,7 +382,10 @@ for scenario in http https http-passwordless https-passwordless; do
   fi
   if [[ "$phase" == old ]]; then
    docker stop --time 10 "$name" >/dev/null
-   docker cp "$name:/appdata/." "$checkpoint"
+   save_checkpoint_archive
+   for index in "${!baseline_histories[@]}"; do
+    rollback_histories+=("$(rollback_expected_history "${stack_names[$index]}" "${baseline_histories[$index]}")")
+   done
    if [[ -n "$probe" ]]; then checkpoint_metadata; fi
   fi
   remove_container

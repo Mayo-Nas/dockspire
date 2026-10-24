@@ -4,7 +4,7 @@
 
 `main` holds the complete source, regression tests, CI, documentation and release tools. Keep runtime images and release assets minimal through packaging, rather than maintaining different file sets on separate branches.
 
-Use short-lived branches for focused changes to `main`. Run the applicable checks below and complete review and CI before merging. See [repository policy](GITHUB.md).
+Use short-lived branches for focused changes to `main`. Complete independent review, the four ordinary PR checks, and the owner-dispatched full upgrade/rollback job on the exact feature HEAD before merging. Both instrumented and original-entrypoint matrices must pass; skipped jobs and stale results do not count. Follow the [exact-ref/SHA dispatch procedure](GITHUB.md#development-and-checks). Keep corrective testing off main until those gates pass.
 
 Run from the repository root. Go 1.27.3 builds `cmd/dockspire`; backend code/tests are in `internal/app`. `web` embeds runtime HTML/CSS/JavaScript and assets, excluding Go source. Node 24 runs CI browser checks. Fast JavaScript regressions need no npm installation; the real-browser smoke suite uses a separate pinned test-only package and lockfile.
 
@@ -20,6 +20,7 @@ node tests/test-navigation.mjs
 node tests/test-stacks.mjs
 node tests/test-revisions.mjs
 sh tests/test-installation.sh
+bash tests/test-upgrade-baseline-policy.sh
 ```
 
 Use fictional data in a dedicated ignored directory:
