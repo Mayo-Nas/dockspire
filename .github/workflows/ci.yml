@@ -99,6 +99,7 @@ jobs:
           sh tests/test-installation.sh
           bash tests/test-release-policy.sh
           bash tests/test-upgrade-baseline-policy.sh
+          bash tests/test-upgrade-history.sh
 
   source-secrets:
     name: Scan source history

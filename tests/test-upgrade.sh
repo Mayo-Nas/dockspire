@@ -142,6 +142,46 @@ history_metadata_difference() {
  ' 2>/dev/null || printf '%s\n' 'Upgrade history comparison: diagnostic_unavailable=true'
 }
 # End history comparison diagnostic.
+# Docker exports directory mtimes at whole-second precision. Derive rollback
+# expectations from the extracted original archive, never from the actual API.
+rollback_expected_history() {
+ local stack=$1 baseline=$2 ids actual_ids='' path revision stamp times='{}'
+ [[ "$stack" =~ ^[a-z0-9][a-z0-9_-]{0,62}$ && ${#baseline} -le 65536 ]] || return 1
+ ids=$(jq -er '
+  .revisions as $rows |
+  if ($rows|type)!="array" or ($rows|length)<2 or
+     ([$rows[]|select(.initial==true)]|length)!=1 or
+     ([$rows[].revision]|unique|length)!=($rows|length) or
+     any($rows[]; (.revision|test("^[0-9a-f]{64}$"))|not)
+  then error("Invalid fixture history") else
+   $rows[]|select(.initial!=true)|.revision
+  end' <<< "$baseline" 2>/dev/null) || return 1
+ [[ -d "$checkpoint/stacks/$stack/revisions" && ! -L "$checkpoint/stacks/$stack/revisions" ]] || return 1
+ for path in "$checkpoint/stacks/$stack/revisions"/*; do
+  [[ -e "$path" ]] || continue
+  revision=${path##*/}
+  [[ -d "$path" && ! -L "$path" && "$revision" =~ ^[0-9a-f]{64}$ ]] || return 1
+  actual_ids+="$revision"$'\n'
+ done
+ [[ $(printf '%s\n' "$ids" | LC_ALL=C sort) == "$(printf '%s' "$actual_ids" | LC_ALL=C sort)" ]] || return 1
+ while IFS= read -r revision; do
+  stamp=$(date -u --reference="$checkpoint/stacks/$stack/revisions/$revision" +'%Y-%m-%dT%H:%M:%S.%NZ') || return 1
+  [[ "$stamp" == *.000000000Z ]] || return 1
+  stamp="${stamp%.000000000Z}Z"
+  times=$(jq -nc --argjson times "$times" --arg revision "$revision" --arg stamp "$stamp" '$times+{($revision):$stamp}') || return 1
+ done <<< "$ids"
+ jq -Sc --argjson times "$times" '
+  def timekey: .storedAt |
+   capture("^(?<whole>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(?:\\.(?<fraction>[0-9]{1,9}))?Z$") |
+   .whole+"."+(((.fraction//"")+"000000000")[0:9]);
+  .revisions |= (map(
+   if .initial==true then . else
+    if $times[.revision] != (.storedAt|sub("\\.[0-9]+Z$";"Z")) then error("Archive time differs beyond transport precision")
+    else .storedAt=$times[.revision] end
+   end) | sort_by([timekey,.revision]) | reverse)
+ ' <<< "$baseline" 2>/dev/null
+}
+# End rollback history expectation.
 # Preserve the stopped source archive; the host view is never the restore source.
 checkpoint_container_owned() {
  [[ "$container_created" == true ]] || return 1
@@ -217,6 +257,7 @@ for scenario in http https http-passwordless https-passwordless; do
  stack_names=()
  baseline_records=()
  baseline_histories=()
+ rollback_histories=()
  candidate_records=()
  candidate_histories=()
  fingerprint=''
@@ -294,11 +335,13 @@ for scenario in http https http-passwordless https-passwordless; do
     else
      [[ "$record" == "${baseline_records[$index]}" ]]
     fi
+    expected_history=${baseline_histories[$index]}
+    if [[ "$phase" == rollback ]]; then expected_history=${rollback_histories[$index]}; fi
     current_history=$(api "$base/api/stacks/${stack_names[$index]}/revisions" | jq -Sc .)
-    if [[ "$current_history" != "${baseline_histories[$index]}" ]]; then
-     history_metadata_difference "${baseline_histories[$index]}" "$current_history"
+    if [[ "$current_history" != "$expected_history" ]]; then
+     history_metadata_difference "$expected_history" "$current_history"
     fi
-    [[ "$current_history" == "${baseline_histories[$index]}" ]]
+    [[ "$current_history" == "$expected_history" ]]
    done
    if [[ "$phase" == rollback ]]; then
     [[ $(curl "${curl_args[@]}" -sS -o /dev/null -w '%{http_code}' -H "Cookie: $cookie" "$base/api/stacks/upgrade-candidate") == 400 ]]
@@ -340,6 +383,9 @@ for scenario in http https http-passwordless https-passwordless; do
   if [[ "$phase" == old ]]; then
    docker stop --time 10 "$name" >/dev/null
    save_checkpoint_archive
+   for index in "${!baseline_histories[@]}"; do
+    rollback_histories+=("$(rollback_expected_history "${stack_names[$index]}" "${baseline_histories[$index]}")")
+   done
    if [[ -n "$probe" ]]; then checkpoint_metadata; fi
   fi
   remove_container
