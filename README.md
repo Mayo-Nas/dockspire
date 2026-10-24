@@ -36,7 +36,7 @@ Open `http://SERVER-IP:8787` and create the `admin` password within five minutes
 
 HTTP carries passwords and sessions without encryption. Use a trusted management network: any reachable client can claim first administrator during the setup window. Choose any password, or explicitly leave both fields blank for persistent passwordless access: anyone who can reach Dockspire can then control this Docker host without signing in. Optional HTTPS and a pinned DNS origin remain available in the installation guide. No certificate fingerprint or log token is needed for HTTP setup.
 
-The Docker socket grants Dockspire control of the host, including when mounted `:ro`. For the Compose alternative, immutable image references, DNS access, optional HTTPS, persistence and older installations, see [installation and upgrades](docs/INSTALL.md). Publishing a release does not update running deployments.
+The Docker socket grants Dockspire control of the host, including when mounted `:ro`. Prefer a saved configuration file? Use the [Docker Compose installation](docs/INSTALL.md#install-with-docker-compose). For immutable image references, DNS access, optional HTTPS, persistence and older installations, see [installation and upgrades](docs/INSTALL.md). Publishing a release does not update running deployments.
 
 Docker packages remain managed by the host. Dockspire does not install or upgrade them automatically.
 
