@@ -8,7 +8,18 @@ Dockspire is maintained by its owner. `main` contains the complete maintained so
 
 CI checks Go on Linux/Windows, fast JavaScript regressions, a real-browser setup/sign-in/draft/review smoke test, installation fixtures, a disposable Linux container and takeover, and the exact image executables for vulnerabilities. Full-history Gitleaks is pinned and fully redacted; a weekly schedule repeats CI. Dependabot proposes application Go, browser-test, Actions and builder-image updates. Bundled Compose uses a standalone build manifest and follows the [manual pinned update procedure](../deploy/compose-runtime/README.md#dependency-updates). Updates require review; no automatic merge, image publication or deployment is configured.
 
-Credentialed baseline checks run only on canonical trusted main, never fork pull requests or fork-main workflows. Ordinary CI does not publish images.
+Credentialed baseline checks accept canonical trusted main or an explicitly reviewed owner-dispatched feature ref. The feature path requires both actor identities to be the owner, an exact non-main `refs/heads/...` input, and a 40-character commit matching the workflow SHA and checked-out HEAD. Both PR event types and forks are rejected before package access. Only the baseline-pull step receives its token; its private Docker authentication directory is removed before candidate execution. Ordinary CI does not publish images.
+
+Before merging a reviewed feature commit, run the four ordinary PR checks and the full upgrade job on that same off-main commit. After approving its exact ref/SHA and credentialed test scope, the owner dispatches:
+
+```sh
+branch=$(git branch --show-current)
+head=$(git rev-parse HEAD)
+gh workflow run ci.yml --ref "$branch" \
+  -f expected_ref="refs/heads/$branch" -f expected_commit="$head"
+```
+
+The workflow must report the selected HEAD, all four ordinary checks successful, and `Check release upgrade and rollback` successful with both the instrumented and original-entrypoint upgrade/rollback steps successful. Each step covers HTTP/HTTPS and password/passwordless modes using fresh disposable data. Missing inputs, a skipped job, or results for an older HEAD do not satisfy this gate. Review and rerun after source changes; do not merge to main merely to discover test failures. The existing main workflow registration permits dispatching the workflow version on the selected branch.
 
 ## Releases and independent visibility expectations
 
@@ -28,7 +39,7 @@ Use versioned images or immutable digests. Do not overwrite a published version,
 These are proposed settings, not changes made by this repository:
 
 - Enable and verify GitHub private vulnerability reporting; [SECURITY.md](../SECURITY.md) does not enable it.
-- Add main protection/rulesets when the plan and visibility allow it. Require successful `Check (ubuntu-latest)`, `Check (windows-latest)`, `Scan source history` and `Check Linux container installation` checks. The Linux check includes the real-browser smoke test. The privileged upgrade job is not a fork-PR requirement; the manual publisher still runs upgrade checks.
+- Add main protection/rulesets when the plan and visibility allow it. Require successful `Check (ubuntu-latest)`, `Check (windows-latest)`, `Scan source history` and `Check Linux container installation` checks. The Linux check includes the real-browser smoke test. The privileged upgrade job never receives fork-PR credentials; the owner must complete the exact-HEAD manual upgrade gate before merging. The manual publisher also retains its upgrade checks.
 - Keep a documented owner recovery/bypass path. Do not require an unavailable second maintainer's approval for every owner PR. Local independent code/security reviews remain required; direct push/bypass is not a substitute for review.
 - Review Actions token permissions, dependency/security alerts, historical logs/metadata and exact publication refs/assets before changing visibility. Public conversion exposes Actions history/logs. Remote settings, pushes and publication each require their own authorization.
 

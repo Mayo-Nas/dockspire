@@ -1,10 +1,28 @@
 #!/usr/bin/env bash
-# Trusted canonical-main job only. Verify explicit package visibility and immutable baseline.
+# Canonical trusted-main or explicitly reviewed owner-dispatched feature only.
 set -euo pipefail
+baseline_authorized() {
+ local reviewed_ref=${DOCKSPIRE_REVIEWED_REF:-} reviewed_head=${DOCKSPIRE_REVIEWED_COMMIT:-}
+ [[ "${GITHUB_REPOSITORY:-}" == Mayo-Nas/dockspire ]] || return 1
+ case "${GITHUB_EVENT_NAME:-}" in pull_request|pull_request_target) return 1 ;; esac
+ if [[ "${GITHUB_REF:-}" == refs/heads/main ]]; then
+  case "${GITHUB_EVENT_NAME:-}" in
+   push|schedule) return 0 ;;
+   workflow_dispatch) [[ "${GITHUB_ACTOR:-}" == Mayo-Nas && "${GITHUB_TRIGGERING_ACTOR:-}" == Mayo-Nas ]]; return ;;
+   *) return 1 ;;
+  esac
+ fi
+ [[ "${GITHUB_EVENT_NAME:-}" == workflow_dispatch && "${GITHUB_ACTOR:-}" == Mayo-Nas && "${GITHUB_TRIGGERING_ACTOR:-}" == Mayo-Nas && "${GITHUB_REF_TYPE:-}" == branch ]] || return 1
+ [[ "$reviewed_ref" == refs/heads/* && "$reviewed_ref" != refs/heads/main && "$reviewed_ref" == "${GITHUB_REF:-}" ]] || return 1
+ [[ "$reviewed_head" =~ ^[0-9a-f]{40}$ && "$reviewed_head" == "${GITHUB_SHA:-}" ]] || return 1
+ [[ $(git rev-parse HEAD) == "$reviewed_head" ]] || return 1
+}
+baseline_authorized || exit 1
+if [[ $# == 1 && "$1" == --check-trust ]]; then exit 0; fi
+[[ $# == 0 ]]
 : "${GH_TOKEN:?Hosted package-read token required}"
 : "${GITHUB_ACTOR:?Hosted actor required}"
 : "${RUNNER_TEMP:?Hosted temporary directory required}"
-[[ "${GITHUB_REPOSITORY:-}" == Mayo-Nas/dockspire && "${GITHUB_REF:-}" == refs/heads/main ]]
 expected_visibility=${DOCKSPIRE_BASELINE_PACKAGE_VISIBILITY:-private}
 [[ "$expected_visibility" == private || "$expected_visibility" == public ]]
 previous_digest=sha256:4fd7ba7c829c48087d6f76883d7c553c33a4e46737d44583580d5716b2b4303c

@@ -117,6 +117,43 @@ checkpoint_metadata() {
   else printf 'Upgrade probe checkpoint: target=%s metadata=unavailable\n' "$target"; fi
  done
 }
+# Preserve the stopped source archive; the host view is never the restore source.
+checkpoint_container_owned() {
+ [[ "$container_created" == true ]] || return 1
+ [[ $(docker inspect --format '{{index .Config.Labels "io.dockspire.upgrade-test"}}' "$name") == "$owner" ]] || return 1
+ [[ $(docker inspect --format '{{.Image}}' "$name") == "$running_image" ]] || return 1
+}
+validate_checkpoint_archive() {
+ local archive=$1 entries types entry relative has_admin=false
+ entries=$(tar --list --absolute-names --quoting-style=escape --file "$archive" 2>/dev/null) || return 1
+ types=$(tar --list --verbose --numeric-owner --absolute-names --quoting-style=escape --file "$archive" 2>/dev/null) || return 1
+ while IFS= read -r entry; do
+  [[ "${entry:0:1}" == - || "${entry:0:1}" == d ]] || return 1
+ done <<< "$types"
+ while IFS= read -r entry; do
+  if [[ "$entry" == . || "$entry" == ./ ]]; then continue; fi
+  relative=${entry#./}
+  relative=${relative%/}
+  [[ "$relative" =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*$ && ${#relative} -le 512 ]] || return 1
+  case "/$relative/" in *"/../"*|*"/./"*|*"//"*) return 1 ;; esac
+  if [[ "$relative" == admin.json ]]; then has_admin=true; fi
+ done <<< "$entries"
+ "$has_admin" || return 1
+}
+save_checkpoint_archive() {
+ checkpoint_container_owned || return 1
+ (umask 077; docker cp "$name:/appdata/." - 2>/dev/null | head -c 33554433 > "$checkpoint_archive") || return 1
+ [[ $(stat -c '%s' "$checkpoint_archive") -le 33554432 ]] || return 1
+ validate_checkpoint_archive "$checkpoint_archive" || return 1
+ (umask 077; tar --extract --file "$checkpoint_archive" --directory "$checkpoint" --no-same-owner --no-same-permissions 2>/dev/null) || return 1
+}
+restore_checkpoint_archive() {
+ checkpoint_container_owned || return 1
+ # stdin is the original relative-content tar with its original numeric IDs/modes.
+ # Do not re-tar the host view or use -a (container-user ownership override).
+ docker cp - "$name:/appdata" < "$checkpoint_archive" >/dev/null || return 1
+}
+# End checkpoint archive helpers.
 # Fixture contents are ASCII and both environment files exist. Encode exactly
 # the new Go JSON/base64 identity, using the stopped pre-upgrade snapshot bytes.
 expected_exact_token() {
@@ -136,6 +173,7 @@ for scenario in http https http-passwordless https-passwordless; do
  volume="$name-data"
  rollback_volume="$name-rollback-data"
  checkpoint="$directory/$scenario-checkpoint"
+ checkpoint_archive="$directory/$scenario-checkpoint.tar"
  mkdir "$checkpoint"
  scheme=${scenario%-passwordless}
  passwordless=false
@@ -183,7 +221,7 @@ for scenario in http https http-passwordless https-passwordless; do
    "${command[@]}" >/dev/null
   container_created=true
   if [[ -n "$probe" ]]; then probe_context; fi
-  if [[ "$phase" == rollback ]]; then docker cp "$checkpoint/." "$name:/appdata"; fi
+  if [[ "$phase" == rollback ]]; then restore_checkpoint_archive; fi
   docker start "$name" >/dev/null
   port=$(docker port "$name" "$port_in/tcp" | sed -n 's/^127\.0\.0\.1://p')
   [[ "$port" =~ ^[0-9]+$ ]]
@@ -272,7 +310,7 @@ for scenario in http https http-passwordless https-passwordless; do
   fi
   if [[ "$phase" == old ]]; then
    docker stop --time 10 "$name" >/dev/null
-   docker cp "$name:/appdata/." "$checkpoint"
+   save_checkpoint_archive
    if [[ -n "$probe" ]]; then checkpoint_metadata; fi
   fi
   remove_container
