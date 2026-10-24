@@ -24,6 +24,7 @@ excluded=(
   cmd/dockspire/main_test.go internal/app/app_test.go web/embed_test.go
   internal/app/tests/fixture.go internal/app/testdata/fixture.go
   internal/app/.git/config.go web/.vscode/settings.js internal/.idea/project.go
+  internal/.vscode/settings.go
   internal/.local/private.go web/.codex/private.js internal/.agents/private.go
   cmd/.ssh/fixture.go internal/.aws/config.go internal/app/.env.go
   internal/app/private.pem internal/app/private.key web/fixture.pfx web/fixture.p12

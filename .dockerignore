@@ -23,8 +23,11 @@
 **/tests/**
 **/testdata/**
 **/.git
+**/.git/**
 **/.vscode
+**/.vscode/**
 **/.idea
+**/.idea/**
 **/*.code-workspace
 **/.env*
 **/*.pem
