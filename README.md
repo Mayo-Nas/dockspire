@@ -8,28 +8,35 @@ Docker and Compose management for self-hosted Linux servers. Dockspire provides 
 
 It runs as one small application container with an embedded browser interface and one persistent data directory.
 
-Public-readiness fixes on current main are unreleased and are not included in v0.1.2. Use the [current source build](docs/INSTALL.md#build-and-start-the-current-source) to try them; a new tag/image requires a separate reviewed release. Repository and GHCR package visibility are independent. See [security reporting and homelab scope](SECURITY.md) and [release preparation](docs/GITHUB.md).
+See [security reporting and homelab scope](SECURITY.md) and the [v0.2.0 release notes](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.2.0) for the image digest, validation and access requirements.
 
 ## Install on a Linux VM
 
-**v0.1.2 uses HTTP on port 8787 and browser administrator setup without a setup token.** Docker Engine and its Compose plugin are required; host Go and Node are unnecessary. The historical v0.1.2 release notes describe private distribution; check the package's actual access requirements. Authenticate source access if the repository is private, and authenticate Docker separately for private package pulls as described in [installation](docs/INSTALL.md#install-v012). Making the source public does not change package access.
+Install Docker Engine on a Linux amd64 server. Dockspire bundles Compose; host Go, Node and a host Compose plugin are unnecessary for this method. Use the published v0.2.0 image below after checking its [release notes](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.2.0).
 
 On a fresh Linux amd64 host without an existing Dockspire installation or `dockspire_data` volume:
 
 ```sh
-gh repo clone Mayo-Nas/dockspire -- --branch v0.1.2
-cd dockspire
-cd deploy
-export DOCKSPIRE_IMAGE=ghcr.io/mayo-nas/dockspire:v0.1.2
-docker compose pull app
-docker compose up -d --no-deps app
+docker volume create dockspire_data
+docker run -d \
+  --name dockspire \
+  --restart unless-stopped \
+  -p 8787:8787 \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  -v dockspire_data:/appdata \
+  --read-only \
+  --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+  --cap-drop ALL \
+  --security-opt no-new-privileges:true \
+  --memory 256m --cpus 0.5 --pids-limit 64 \
+  ghcr.io/mayo-nas/dockspire:v0.2.0
 ```
 
-Use the matching tagged files for a fresh installation; existing installations must follow [upgrade and rollback](docs/INSTALL.md#upgrade-and-rollback). Keep Compose commands in `deploy/` and repeat the image export after reconnecting, or persist the selected image in a private `.env`. Open `http://VM-IP:8787` and create the `admin` password within five minutes.
+Open `http://SERVER-IP:8787` and create the `admin` password within five minutes. If setup expires, run `docker restart dockspire`. Check startup with `docker logs dockspire` and `docker exec dockspire /stacklane --healthcheck`. Existing installations must follow [upgrade and rollback](docs/INSTALL.md#upgrade-and-rollback); do not start a second manager against their data volume.
 
 HTTP carries passwords and sessions without encryption. Use a trusted management network: any reachable client can claim first administrator during the setup window. Choose any password, or explicitly leave both fields blank for persistent passwordless access: anyone who can reach Dockspire can then control this Docker host without signing in. Optional HTTPS and a pinned DNS origin remain available in the installation guide. No certificate fingerprint or log token is needed for HTTP setup.
 
-The Compose file requires an explicit `DOCKSPIRE_IMAGE`. For an immutable image reference, `.env` configuration, source builds, optional HTTPS, persistence, or v0.1.0 compatibility, see [installation and upgrades](docs/INSTALL.md) and the [v0.1.2 release notes](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.1.2). Publishing a release does not update existing running deployments.
+The Docker socket grants Dockspire control of the host, including when mounted `:ro`. Prefer a saved configuration file? Use the [Docker Compose installation](docs/INSTALL.md#install-with-docker-compose). For immutable image references, DNS access, optional HTTPS, persistence and older installations, see [installation and upgrades](docs/INSTALL.md). Publishing a release does not update running deployments.
 
 Docker packages remain managed by the host. Dockspire does not install or upgrade them automatically.
 
@@ -55,6 +62,6 @@ Detailed application workflows and access/backup behavior are in the [operations
 
 The supported release target is Linux amd64 with Docker Engine and modern Compose. The application and installation workflow are covered by Go, UI and disposable-container tests. Other architectures have not been runtime-verified.
 
-v0.1.2 is the branding and security maintenance release: refreshed supplied artwork, consistent navigation icons and a Go 1.27.3 build toolchain. Before using the versioned installation commands above, confirm its release notes record the verified private image and immutable digest. Source changes and version tags alone do not publish images or update running installations.
+v0.2.0 includes Apache 2.0 licensing, bounded log tails and subprocess output, stricter bundled Compose checks, presence-aware configuration identities, and expanded browser and upgrade/rollback verification. Before upgrading, take a private whole-data backup: new-format writes require that compatible backup for rollback to an older image. See the [release notes](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.2.0).
 
 The canonical repository is [Mayo-Nas/dockspire](https://github.com/Mayo-Nas/dockspire). Dockspire is licensed under [Apache 2.0](LICENSE); attribution is in [NOTICE](NOTICE). Files under `licenses/` retain third-party notices, and branding retains its supplied [asset notes](docs/branding/ASSET_LICENSE_NOTES.md). See [repository and release guidance](docs/GITHUB.md).

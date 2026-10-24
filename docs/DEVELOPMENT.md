@@ -48,22 +48,23 @@ The helper uses empty project-local npm configs, the committed lockfile, a depen
 The topbar shows the embedded build version. Unversioned source builds use `dev`; release publication passes its validated tag through Docker's `VERSION` build argument into the Go binary. For a labeled development build, use `docker build --build-arg VERSION=v0.1.2-dev -t dockspire:local .` and `bash tests/test-container.sh dockspire:local v0.1.2-dev`. A development label is not a published release.
 
 ```sh
+bash tests/test-build-context.sh
 docker build -t dockspire:local .
 bash tests/test-container.sh dockspire:local
 go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
 bash scripts/check-image-security.sh dockspire:local
 ```
 
-The image builds the application and patched upstream Compose with digest-pinned Go builders. [The separate Compose manifest](../deploy/compose-runtime/README.md) records its dependency override and build procedure. The container tests create/remove their own container/volume on a random loopback port, checking real Docker/Compose, default HTTP and optional HTTPS, tokenless setup, cookie policy, login, TLS fingerprint and restart persistence. They never deploy a stack. Check host disk capacity before building; use a dedicated development host.
+The image builds the application and patched upstream Compose with digest-pinned Go builders. [The separate Compose manifest](../deploy/compose-runtime/README.md) records its dependency override and build procedure. The build context explicitly allows runtime source/assets, license notices and the two Compose manifests; update the allowlist and regression when adding required input types. `test-build-context.sh` exports a disposable scratch fixture through BuildKit and verifies required files survive while fictional private/test/configuration files stay excluded. It never copies private source files. The container test invokes it before creating its own container/volume on a random loopback port, then checks real Docker/Compose, default HTTP and optional HTTPS, tokenless setup, cookie policy, login, TLS fingerprint and restart persistence. It never deploys a stack. Check host disk capacity before building; use a dedicated development host.
 
-Production configuration is `deploy/compose.yaml`. To start a fresh installation from the local image on a Linux development host:
+The quick installation uses `docker run`; `deploy/compose.yaml` is the saved-configuration alternative with an automatic exec-form healthcheck. To start a fresh installation from the local image on a Linux development host using Compose:
 
 ```sh
 DOCKSPIRE_IMAGE=dockspire:local docker compose -f deploy/compose.yaml up -d --pull never
 DOCKSPIRE_IMAGE=dockspire:local docker compose -f deploy/compose.yaml logs app
 ```
 
-Follow [installation](INSTALL.md) for browser setup and optional HTTPS. The HTTP template supports v0.1.1/v0.1.2 release images (after publication) or a matching source build; v0.1.0 uses its tagged HTTPS template. This uses the same `dockspire` project and `dockspire_data` volume as the release template; use a dedicated development host, never a host with an existing Dockspire installation. It connects to the host Docker socket. For fictional inventory without Docker access, use the native demo above. `deploy/development/compose.demo.yaml` is also retained for existing demo workspaces and requires offline administrator initialization.
+Follow [installation](INSTALL.md) for browser setup and optional HTTPS. The HTTP template supports v0.1.1/v0.1.2/v0.2.0 release images after their publication, or a matching source build; v0.1.0 uses its tagged HTTPS template. This uses the same `dockspire` project and `dockspire_data` volume as the release template; use a dedicated development host, never a host with an existing Dockspire installation. It connects to the host Docker socket. For fictional inventory without Docker access, use the native demo above. `deploy/development/compose.demo.yaml` is also retained for existing demo workspaces and requires offline administrator initialization.
 
 The old root Compose file, preview templates, archive packagers and archive installers have been retired. Existing deployments must retain their own configuration and data; see [upgrade and rollback](INSTALL.md#upgrade-and-rollback). Building locally does not publish a tag, release or image. Publication requires explicit authorization; see [GITHUB.md](GITHUB.md).
 
@@ -77,7 +78,7 @@ Use ignored `.local/` or an external workspace for caches, binaries, fixtures, r
 
 Dockspire is one Go process serving embedded browser assets and a Docker/Compose API, with no frontend build step. The saved library stores complete configuration revisions. Durable deployment attempts distinguish saved, attempted, and observed state; interrupted work requires inspection before recovery. Portable archives exclude administrator credentials and TLS keys. Back up workload volumes and bind-mounted data separately.
 
-Primary installations use `deploy/compose.yaml`, a versioned Linux amd64 image, a persistent data volume, HTTP on 8787 (optional HTTPS), and browser administrator setup. Changing existing project names or storage paths requires an explicit migration. The Docker socket grants host administration. Use a trusted management network or a verified SSH tunnel. Multi-host management is not implemented. v0.1.1 and later support an explicit, conservatively checked Portainer takeover workflow; it never runs automatically.
+Installations use `docker run` or `deploy/compose.yaml`, a versioned Linux amd64 image, a persistent data volume, HTTP on 8787 (optional HTTPS), and browser administrator setup. Changing installation methods, existing project names or storage paths requires an explicit migration. The Docker socket grants host administration. Use a trusted management network or a verified SSH tunnel. Multi-host management is not implemented. v0.1.1 and later support an explicit, conservatively checked Portainer takeover workflow; it never runs automatically.
 
 ## Dependency attribution
 
