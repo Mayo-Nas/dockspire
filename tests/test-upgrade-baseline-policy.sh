@@ -56,3 +56,4 @@ if env GITHUB_REPOSITORY=other/dockspire GITHUB_REF=refs/heads/main \
  bash "$root/scripts/pull-upgrade-baseline.sh" >/dev/null 2>&1; then exit 1; fi
 [[ ! -e "$POLICY_MARKER" ]]
 printf '%s\n' 'Upgrade baseline trust-policy fixtures passed'
+bash "$root/tests/test-upgrade-baseline-metadata.sh"
