@@ -52,7 +52,7 @@ func authRequest(handler http.Handler, method, path, origin, body string, cookie
 	if cookie != nil {
 		r.AddCookie(cookie)
 	}
-	r.Header.Set("X-Stacklane-CSRF", csrf)
+	r.Header.Set("X-Dockspire-CSRF", csrf)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, r)
 	return w
@@ -102,7 +102,7 @@ func TestAuthenticationProtectsApplication(t *testing.T) {
 			t.Fatalf("unauthenticated asset accessible: %s %d", path, w.Code)
 		}
 	}
-	for _, path := range []string{"/login", "/login.js", "/style.css", "/api/health", "/favicon.ico", "/brand/dockspire-icon-64.png", "/brand/dockspire-icon-128.png", "/brand/dockspire-icon-256.png", "/brand/dockspire-horizontal-dark.png"} {
+	for _, path := range []string{"/login", "/login.js", "/style.css", "/api/health", "/brand/dockspire-icon-256.png", "/brand/dockspire-horizontal-dark.png"} {
 		w := authRequest(handler, "GET", "http://127.0.0.1:8788"+path, "", "", nil, "")
 		if w.Code != 200 || w.Header().Get("Cache-Control") != "no-store" || w.Header().Get("Content-Security-Policy") == "" {
 			t.Fatalf("public login/health unavailable or unprotected: %s %d", path, w.Code)
@@ -112,9 +112,6 @@ func TestAuthenticationProtectsApplication(t *testing.T) {
 		}
 		if strings.HasSuffix(path, ".png") && (!strings.HasPrefix(w.Header().Get("Content-Type"), "image/png") || !strings.HasPrefix(w.Body.String(), "\x89PNG\r\n\x1a\n")) {
 			t.Fatalf("brand image not served as PNG: %s", path)
-		}
-		if path == "/favicon.ico" && !strings.HasPrefix(w.Body.String(), "\x00\x00\x01\x00") {
-			t.Fatal("favicon not served as an ICO image")
 		}
 	}
 }
@@ -209,7 +206,7 @@ func TestLoginOriginHostProxyAndMediaChecks(t *testing.T) {
 	// TLS terminates at the proxy; backend HTTP still uses the configured HTTPS
 	// origin and secure cookie, without trusting forwarded headers.
 	w = authRequest(handler, "POST", "http://stacks.example.test/api/auth/login", origin, string(body), nil, "")
-	if w.Code != 200 || !w.Result().Cookies()[0].Secure || a.cookieName() != "__Host-stacklane_session" {
+	if w.Code != 200 || !w.Result().Cookies()[0].Secure || a.cookieName() != "__Host-dockspire_session" {
 		t.Fatal("proxy origin/cookie policy failed", w.Code)
 	}
 	if w := authRequest(handler, "GET", "http://127.0.0.1:8787/api/health", "", "", nil, ""); w.Code != 200 {
@@ -259,7 +256,7 @@ func TestExplicitHTTPLANHostsAndOrigins(t *testing.T) {
 		}
 	}
 	cookie := fixtureLogin(t, handler, origin)
-	if cookie.Secure || cookie.Name != "stacklane_session" {
+	if cookie.Secure || cookie.Name != "dockspire_session" {
 		t.Fatal("HTTP cookie unusable")
 	}
 	_, pinned := authFixture(t, "http://stacks.example.test:8787")
@@ -392,7 +389,7 @@ func TestAdminRejectsMalformedStorageAndRequests(t *testing.T) {
 }
 
 func TestAdminCLI(t *testing.T) {
-	if os.Getenv("STACKLANE_TEST_ADMIN_CLI") == "1" {
+	if os.Getenv("DOCKSPIRE_TEST_ADMIN_CLI") == "1" {
 		for i, arg := range os.Args {
 			if arg == "--" {
 				os.Args = append([]string{os.Args[0]}, os.Args[i+1:]...)
@@ -424,7 +421,7 @@ func TestAdminCLI(t *testing.T) {
 	} {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		cmd := exec.CommandContext(ctx, binary, append([]string{"-test.run=^TestAdminCLI$", "--", "--data-dir", root}, command.args...)...)
-		cmd.Env = append(os.Environ(), "STACKLANE_TEST_ADMIN_CLI=1")
+		cmd.Env = append(os.Environ(), "DOCKSPIRE_TEST_ADMIN_CLI=1")
 		cmd.Stdin = strings.NewReader(fixtureAdminPassword + "\n")
 		output, err := cmd.CombinedOutput()
 		cancel()
@@ -452,7 +449,7 @@ func TestAuthenticatedHTTPStackAndArchiveFlow(t *testing.T) {
 		}
 		r.Header.Set("Origin", server.URL)
 		r.Header.Set("Content-Type", "application/json")
-		r.Header.Set("X-Stacklane-CSRF", csrf)
+		r.Header.Set("X-Dockspire-CSRF", csrf)
 		response, err := client.Do(r)
 		if err != nil {
 			t.Fatal(err)

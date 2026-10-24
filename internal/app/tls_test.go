@@ -72,7 +72,7 @@ func TestTLSFingerprintCLIUsesOnlyPublicCertificate(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	command := exec.CommandContext(ctx, binary, "-test.run=^TestAdminCLI$", "--", "--tls-fingerprint", "--data-dir", root)
-	command.Env = append(os.Environ(), "STACKLANE_TEST_ADMIN_CLI=1")
+	command.Env = append(os.Environ(), "DOCKSPIRE_TEST_ADMIN_CLI=1")
 	output, err := command.CombinedOutput()
 	if err != nil || strings.TrimSpace(strings.SplitN(string(output), "\n", 2)[0]) != "SHA256 Fingerprint="+certificateFingerprint(certificate.Certificate[0]) {
 		t.Fatal("offline public certificate command failed", err)

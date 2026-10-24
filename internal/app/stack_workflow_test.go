@@ -321,7 +321,7 @@ func TestEditAndOperationRoutes(t *testing.T) {
 		req := httptest.NewRequest("POST", "http://localhost:8787"+path, strings.NewReader(string(body)))
 		req.Header.Set("Origin", "http://localhost:8787")
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-Stacklane-CSRF", token)
+		req.Header.Set("X-Dockspire-CSRF", token)
 		r := httptest.NewRecorder()
 		handler.ServeHTTP(r, req)
 		return r

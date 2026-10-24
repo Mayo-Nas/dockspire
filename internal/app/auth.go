@@ -239,9 +239,9 @@ func (a *adminAccess) requestOrigin(r *http.Request) string {
 
 func (a *adminAccess) cookieName() string {
 	if a.secure {
-		return "__Host-stacklane_session"
+		return "__Host-dockspire_session"
 	}
-	return "stacklane_session"
+	return "dockspire_session"
 }
 
 func (a *adminAccess) cookie(w http.ResponseWriter, token string, expires time.Time) {
@@ -364,7 +364,7 @@ func (a *adminAccess) protect(next http.Handler) http.Handler {
 		}
 		if required && r.URL.Path != "/api/health" {
 			switch r.URL.Path {
-			case "/setup", "/setup.js", "/style.css", "/favicon.ico", "/brand/dockspire-horizontal-dark.png", "/brand/dockspire-icon-256.png":
+			case "/setup", "/setup.js", "/style.css", "/brand/dockspire-horizontal-dark.png", "/brand/dockspire-icon-256.png":
 				next.ServeHTTP(w, r)
 			default:
 				if strings.HasPrefix(r.URL.Path, "/api/") {
@@ -399,8 +399,7 @@ func (a *adminAccess) protect(next http.Handler) http.Handler {
 		// Only the exact static assets needed before sign-in are public.
 		publicAsset := false
 		switch r.URL.Path {
-		case "/login", "/login.js", "/style.css", "/favicon.ico",
-			"/brand/dockspire-icon-64.png", "/brand/dockspire-icon-128.png",
+		case "/login", "/login.js", "/style.css",
 			"/brand/dockspire-icon-256.png", "/brand/dockspire-horizontal-dark.png":
 			publicAsset = true
 		}
@@ -420,7 +419,7 @@ func (a *adminAccess) protect(next http.Handler) http.Handler {
 			}
 			return
 		}
-		if r.Method == http.MethodPost && subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Stacklane-CSRF")), []byte(session.csrf)) != 1 {
+		if r.Method == http.MethodPost && subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Dockspire-CSRF")), []byte(session.csrf)) != 1 {
 			writeJSON(w, 403, map[string]string{"error": "Open Dockspire in this browser and retry the operation"})
 			return
 		}

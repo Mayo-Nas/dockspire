@@ -383,7 +383,7 @@ func newApplicationHandler(source inventorySource, library *stackLibrary, access
 			if access != nil {
 				origin = access.requestOrigin(r)
 			}
-			if media != "application/json" || r.Header.Get("Origin") != origin || (access == nil && subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Stacklane-CSRF")), []byte(csrf)) != 1) {
+			if media != "application/json" || r.Header.Get("Origin") != origin || (access == nil && subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Dockspire-CSRF")), []byte(csrf)) != 1) {
 				writeJSON(w, 403, map[string]string{"error": "Open Dockspire in this browser and retry the operation"})
 				return
 			}

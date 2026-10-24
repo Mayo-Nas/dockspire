@@ -16,7 +16,7 @@ def status():
     connection = http.client.HTTPConnection('localhost', timeout=15)
     connection.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     connection.sock.settimeout(15)
-    connection.sock.connect('/run/stacklane-host/control.sock')
+    connection.sock.connect('/run/dockspire-host/control.sock')
     try:
         connection.request('GET', '/status')
         response = connection.getresponse()
@@ -26,7 +26,7 @@ def status():
     finally:
         connection.close()
 
-dropin = pathlib.Path('/etc/systemd/system/stacklane-host.service.d/apt-identity.conf')
+dropin = pathlib.Path('/etc/systemd/system/dockspire-host.service.d/apt-identity.conf')
 previous = None
 changed = False
 try:
@@ -38,11 +38,11 @@ try:
         'ProtectHome=true', 'PrivateTmp=true', 'ProtectKernelTunables=true',
         'ProtectKernelModules=true', 'ProtectControlGroups=true',
         'RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK',
-        'ReadOnlyPaths=/usr/local/lib/stacklane-host',
+        'ReadOnlyPaths=/usr/local/lib/dockspire-host',
         'RuntimeMaxSec=300',
     ]
     command = ['systemd-run', '--quiet', '--wait', '--pipe', '--collect',
-               '--unit=stacklane-apt-repair-test-' + str(time.time_ns())]
+               '--unit=dockspire-apt-repair-test-' + str(time.time_ns())]
     command += ['--property=' + value for value in properties]
     command += ['/usr/bin/env', '-i', 'PATH=/usr/sbin:/usr/bin:/sbin:/bin',
                 'HOME=/root', 'LANG=C', 'LC_ALL=C', 'DEBIAN_FRONTEND=noninteractive',
@@ -68,7 +68,7 @@ try:
     dropin.chmod(0o644)
     changed = True
     subprocess.run(['systemctl', 'daemon-reload'], check=True)
-    subprocess.run(['systemctl', 'restart', 'stacklane-host.service'], check=True)
+    subprocess.run(['systemctl', 'restart', 'dockspire-host.service'], check=True)
     for attempt in range(20):
         try:
             current = status()
@@ -90,7 +90,7 @@ except Exception as error:
             dropin.write_bytes(previous)
             dropin.chmod(0o644)
         subprocess.run(['systemctl', 'daemon-reload'], check=False)
-        subprocess.run(['systemctl', 'restart', 'stacklane-host.service'], check=False)
+        subprocess.run(['systemctl', 'restart', 'dockspire-host.service'], check=False)
         report['serviceChangeReverted'] = True
 finally:
     with os.fdopen(fd, 'w') as stream:

@@ -35,7 +35,6 @@ node_modules/
 /tests/results/
 /tests/fixtures/
 /tests/harnesses/
-/stacklane
 /dockspire
 /deploy/compose-runtime/docker-compose
 *.tar

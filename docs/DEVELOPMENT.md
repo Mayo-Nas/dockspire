@@ -45,7 +45,7 @@ The helper uses empty project-local npm configs, the committed lockfile, a depen
 
 ## Container build and checks
 
-The topbar shows the embedded build version. Unversioned source builds use `dev`; release publication passes its validated tag through Docker's `VERSION` build argument into the Go binary. For a labeled development build, use `docker build --build-arg VERSION=v0.1.2-dev -t dockspire:local .` and `bash tests/test-container.sh dockspire:local v0.1.2-dev`. A development label is not a published release.
+The topbar shows the embedded build version. Unversioned source builds use `dev`; release publication passes its validated tag through Docker's `VERSION` build argument into the Go binary. For a labeled development build, use `docker build --build-arg VERSION=v0.3.0-dev -t dockspire:local .` and `bash tests/test-container.sh dockspire:local v0.3.0-dev`. A development label is not a published release.
 
 ```sh
 bash tests/test-build-context.sh
@@ -64,9 +64,9 @@ DOCKSPIRE_IMAGE=dockspire:local docker compose -f deploy/compose.yaml up -d --pu
 DOCKSPIRE_IMAGE=dockspire:local docker compose -f deploy/compose.yaml logs app
 ```
 
-Follow [installation](INSTALL.md) for browser setup and optional HTTPS. The HTTP template supports v0.1.2/v0.2.0 release images or a matching source build. Existing or locally retained v0.1.1 images use that HTTP template; locally retained v0.1.0 uses its tagged HTTPS template. The v0.1.0/v0.1.1 registry versions are retired; their tagged source remains available for reference. This uses the same `dockspire` project and `dockspire_data` volume as the release template; use a dedicated development host, never a host with an existing Dockspire installation. It connects to the host Docker socket. For fictional inventory without Docker access, use the native demo above. `deploy/development/compose.demo.yaml` is also retained for existing demo workspaces and requires offline administrator initialization.
+Follow [installation](INSTALL.md) for browser setup and optional HTTPS. The current template targets v0.3.0 or a matching source build; check release availability before choosing a published image. Keep the explicit local-image selection when testing your build. The template fixes project `dockspire` and data volume `dockspire_data`, so use a dedicated development host.
 
-The old root Compose file, preview templates, archive packagers and archive installers have been retired. Existing deployments must retain their own configuration and data; see [upgrade and rollback](INSTALL.md#upgrade-and-rollback). Building locally does not publish a tag, release or image. Publication requires explicit authorization; see [GITHUB.md](GITHUB.md).
+For fictional inventory without Docker access, use the native demo above. `deploy/development/compose.demo.yaml` also provides a loopback-only demo and requires offline administrator initialization. Building locally does not publish a tag, release or image; see [repository policy](GITHUB.md).
 
 On a dedicated Linux amd64 development Docker host, opt in to the disposable takeover test using an already-built local image ID: `DOCKSPIRE_TAKEOVER_TEST=1 DOCKSPIRE_TEST_IMAGE="$(docker image inspect --format '{{.Id}}' dockspire:local)" go test ./internal/app -run '^TestTakeoverDockerIntegration$' -count=1 -timeout=5m`. It creates only new randomized synthetic projects, tests actual Compose handoff/redeploy and data markers, then removes its own containers, volumes and network. It never imports an existing stack. Ordinary Go tests skip this fixture. Container CI and image publication run it before executable scans/publication.
 
@@ -78,7 +78,7 @@ Use ignored `.local/` or an external workspace for caches, binaries, fixtures, r
 
 Dockspire is one Go process serving embedded browser assets and a Docker/Compose API, with no frontend build step. The saved library stores complete configuration revisions. Durable deployment attempts distinguish saved, attempted, and observed state; interrupted work requires inspection before recovery. Portable archives exclude administrator credentials and TLS keys. Back up workload volumes and bind-mounted data separately.
 
-Installations use `docker run` or `deploy/compose.yaml`, a versioned Linux amd64 image, a persistent data volume, HTTP on 8787 (optional HTTPS), and browser administrator setup. Changing installation methods, existing project names or storage paths requires an explicit migration. The Docker socket grants host administration. Use a trusted management network or a verified SSH tunnel. Multi-host management is not implemented. v0.1.1 and later support an explicit, conservatively checked Portainer takeover workflow; it never runs automatically.
+Installations use `docker run` or `deploy/compose.yaml`, a versioned Linux amd64 image, a persistent data volume, HTTP on 8787 (optional HTTPS), and browser administrator setup. Changing installation methods, existing project names or storage paths requires an explicit migration. The Docker socket grants host administration. Use a trusted management network or a verified SSH tunnel. Multi-host management is not implemented. The explicit, conservatively checked Portainer takeover workflow never runs automatically.
 
 ## Dependency attribution
 

@@ -290,7 +290,7 @@ func TestHostRoutesRequireCSRFAndCoordinateWithStackJobs(t *testing.T) {
 		request := httptest.NewRequest("POST", "http://localhost/api/system/refresh", strings.NewReader(`{}`))
 		request.Header.Set("Content-Type", "application/json")
 		request.Header.Set("Origin", "http://localhost")
-		request.Header.Set("X-Stacklane-CSRF", token)
+		request.Header.Set("X-Dockspire-CSRF", token)
 		result := httptest.NewRecorder()
 		handler.ServeHTTP(result, request)
 		return result
@@ -346,7 +346,7 @@ func TestAppBlocksInstallationWithLegacyOrMissingHelper(t *testing.T) {
 			request := httptest.NewRequest("POST", "http://localhost/api/system/"+action, strings.NewReader(`{"target":"engine","planId":"old-plan","confirmation":"UPDATE DOCKER","acknowledge":true}`))
 			request.Header.Set("Content-Type", "application/json")
 			request.Header.Set("Origin", "http://localhost")
-			request.Header.Set("X-Stacklane-CSRF", session.CSRFToken)
+			request.Header.Set("X-Dockspire-CSRF", session.CSRFToken)
 			result := httptest.NewRecorder()
 			handler.ServeHTTP(result, request)
 			if result.Code != http.StatusForbidden || !strings.Contains(result.Body.String(), hostUpdatesDisabled) {

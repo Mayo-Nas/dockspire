@@ -6,11 +6,11 @@ Docker management for self-hosted Linux servers. Dockspire provides live invento
 
 It runs as one small application container with an embedded browser interface and one persistent data directory.
 
-See [security reporting and homelab scope](SECURITY.md) and the [v0.2.0 release notes](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.2.0) for the image digest, validation and access requirements.
+See [security reporting and homelab scope](SECURITY.md) and [Releases](https://github.com/Mayo-Nas/dockspire/releases) for image availability, digests, validation and access requirements.
 
 ## Install on a Linux VM
 
-Choose [Docker Compose](#docker-compose-recommended) for a saved configuration file, or [Docker run](#docker-run) for a single command. Both use the public v0.2.0 image without a registry login. See its [release notes](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.2.0) for validation and the immutable image digest.
+Choose [Docker Compose](#docker-compose-recommended) for a saved configuration file, or [Docker run](#docker-run) for a single command. These examples target v0.3.0; confirm image availability on [Releases](https://github.com/Mayo-Nas/dockspire/releases) before installing. Public images need no registry login.
 
 You need Docker Engine on a Linux amd64 server and permission to run Docker commands. Compose installation also needs the host Docker Compose plugin (`docker compose version`); `docker run` does not. Dockspire bundles Compose for managing your stacks, so host Go and Node are unnecessary.
 
@@ -30,7 +30,7 @@ Alternatively, create a `dockspire-compose.yaml` file with the following content
 name: dockspire
 services:
   app:
-    image: ${DOCKSPIRE_IMAGE:-ghcr.io/mayo-nas/dockspire:v0.2.0}
+    image: ${DOCKSPIRE_IMAGE:-ghcr.io/mayo-nas/dockspire:v0.3.0}
     command: ["--allow-http", "--setup", "--data-dir", "/appdata", "--external-url", "${DOCKSPIRE_EXTERNAL_URL:-}"]
     restart: unless-stopped
     ports:
@@ -47,7 +47,7 @@ services:
     cpus: 0.5
     pids_limit: 64
     healthcheck:
-      test: ["CMD", "/stacklane", "--healthcheck"]
+      test: ["CMD", "/dockspire", "--healthcheck"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -93,7 +93,7 @@ docker run -d \
   --cap-drop ALL \
   --security-opt no-new-privileges:true \
   --memory 256m --cpus 0.5 --pids-limit 64 \
-  ghcr.io/mayo-nas/dockspire:v0.2.0
+  ghcr.io/mayo-nas/dockspire:v0.3.0
 ```
 
 Check that the container has started:
@@ -118,7 +118,7 @@ You will be presented with Dockspire's initial setup page. Create the `admin` pa
 
 HTTP carries passwords and sessions without encryption. Use a trusted management network: any reachable client can claim first administrator during the setup window. Choose any password, or explicitly leave both fields blank for persistent passwordless access: anyone who can reach Dockspire can then control this Docker host without signing in. Optional HTTPS and a pinned DNS origin remain available in the installation guide. No certificate fingerprint or log token is needed for HTTP setup.
 
-The Docker socket grants Dockspire control of the host, including when mounted `:ro`. Both methods store Dockspire's data in `dockspire_data` at `/appdata`; do not start a second manager against that volume. For immutable image references, DNS access, optional HTTPS, persistence and older installations, see [installation and upgrades](docs/INSTALL.md). Publishing a release does not update running deployments.
+The Docker socket grants Dockspire control of the host, including when mounted `:ro`. Both methods store Dockspire's data in `dockspire_data` at `/appdata`; do not start a second manager against that volume. For immutable image references, DNS access, optional HTTPS and backups, see [installation and upgrades](docs/INSTALL.md). Publishing a release does not update running deployments.
 
 Docker packages remain managed by the host. Dockspire does not install or upgrade them automatically.
 
@@ -144,6 +144,6 @@ Detailed application workflows and access/backup behavior are in the [operations
 
 The supported release target is Linux amd64 with Docker Engine and modern Compose. The application and installation workflow are covered by Go, UI and disposable-container tests. Other architectures have not been runtime-verified.
 
-v0.2.0 includes Apache 2.0 licensing, bounded log tails and subprocess output, stricter bundled Compose checks, presence-aware configuration identities, and expanded browser and upgrade/rollback verification. Before upgrading, take a private whole-data backup: new-format writes require that compatible backup for rollback to an older image. See the [release notes](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.2.0).
+v0.3.0 uses Dockspire names consistently for the executable, browser protocol, archives and optional host helper. It is a clean break from previous internal archive naming. Before upgrading, take a private whole-data backup and retain the previous image. Check [Releases](https://github.com/Mayo-Nas/dockspire/releases) for availability and validation.
 
 The canonical repository is [Mayo-Nas/dockspire](https://github.com/Mayo-Nas/dockspire). Dockspire is licensed under [Apache 2.0](LICENSE); attribution is in [NOTICE](NOTICE). Files under `licenses/` retain third-party notices, and branding retains its supplied [asset notes](docs/branding/ASSET_LICENSE_NOTES.md). See [repository and release guidance](docs/GITHUB.md).

@@ -2,7 +2,7 @@
 
 You need Docker Engine on a Linux amd64 server and permission to run Docker commands. Docker Compose installation also needs the host Compose plugin (`docker compose version`). Dockspire bundles Compose for managing stacks; host Go and Node are unnecessary.
 
-Choose one method for a fresh installation. Existing installations should use [Upgrade and rollback](#upgrade-and-rollback). The public [v0.2.0 image](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.2.0) needs no registry login.
+Choose one method for a fresh installation. Existing installations should use [Upgrade and rollback](#upgrade-and-rollback). Examples target `v0.3.0`; check [Releases](https://github.com/Mayo-Nas/dockspire/releases) for image availability and its digest before installing.
 
 Use a trusted management network: HTTP is unencrypted, and Docker socket access gives Dockspire control of the host even when mounted `:ro`. Both methods use `dockspire_data` at `/appdata`; keep that volume and run only one manager against it.
 
@@ -20,7 +20,7 @@ Alternatively, create a `dockspire-compose.yaml` file with the following content
 name: dockspire
 services:
   app:
-    image: ${DOCKSPIRE_IMAGE:-ghcr.io/mayo-nas/dockspire:v0.2.0}
+    image: ${DOCKSPIRE_IMAGE:-ghcr.io/mayo-nas/dockspire:v0.3.0}
     command: ["--allow-http", "--setup", "--data-dir", "/appdata", "--external-url", "${DOCKSPIRE_EXTERNAL_URL:-}"]
     restart: unless-stopped
     ports:
@@ -37,7 +37,7 @@ services:
     cpus: 0.5
     pids_limit: 64
     healthcheck:
-      test: ["CMD", "/stacklane", "--healthcheck"]
+      test: ["CMD", "/dockspire", "--healthcheck"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -61,7 +61,7 @@ docker ps
 
 Continue with [Logging in](#logging-in).
 
-No `.env` file or image export is required. The maintained Compose file defaults to the published v0.2.0 image. Keep your saved `dockspire-compose.yaml` and run subsequent commands from its directory. The template fixes project `dockspire`, service `app` and volume `dockspire_data`; another directory does not isolate an existing installation. Data persists in that volume at `/appdata`.
+No `.env` file or image export is required. The maintained Compose file defaults to the v0.3.0 image reference. Keep your saved `dockspire-compose.yaml` and run subsequent commands from its directory. The template fixes project `dockspire`, service `app` and volume `dockspire_data`; another directory does not isolate an existing installation. Data persists in that volume at `/appdata`.
 
 ## Install with Docker
 
@@ -85,7 +85,7 @@ docker run -d \
   --cap-drop ALL \
   --security-opt no-new-privileges:true \
   --memory 256m --cpus 0.5 --pids-limit 64 \
-  ghcr.io/mayo-nas/dockspire:v0.2.0
+  ghcr.io/mayo-nas/dockspire:v0.3.0
 ```
 
 Check that the container has started:
@@ -167,11 +167,3 @@ See [Portainer file import and optional source-access setup](OPERATIONS.md#optio
 ## Build and start the current source
 
 See [source-build commands](OPERATIONS.md#build-and-start-the-current-source) and [development checks](DEVELOPMENT.md). Keep an explicit local-image selection when using a source build.
-
-## v0.1.1 compatibility
-
-The v0.1.0/v0.1.1 registry images are retired; keep existing images and matching settings. See [v0.1.1 compatibility](OPERATIONS.md#v011-compatibility).
-
-## Locally retained v0.1.0 compatibility
-
-Keep its HTTPS 9443 configuration and retained image. See [v0.1.0 compatibility](OPERATIONS.md#locally-retained-v010-compatibility) and [older/source-built recovery](OPERATIONS.md#source-built-and-older-installations).

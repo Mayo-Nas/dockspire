@@ -89,9 +89,9 @@ func TestBrowserSetupLoginAndRestart(t *testing.T) {
 			}
 			login, _ := json.Marshal(map[string]string{"username": "admin", "password": fixtureAdminPassword})
 			response := request("POST", "/api/auth/login", string(login))
-			cookieName := "stacklane_session"
+			cookieName := "dockspire_session"
 			if useTLS {
-				cookieName = "__Host-stacklane_session"
+				cookieName = "__Host-dockspire_session"
 			}
 			if response.StatusCode != 200 || len(response.Cookies()) != 1 || response.Cookies()[0].Secure != useTLS || response.Cookies()[0].Name != cookieName {
 				t.Fatal("login/cookie failed")

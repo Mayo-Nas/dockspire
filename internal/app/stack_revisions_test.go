@@ -276,7 +276,7 @@ func TestRevisionAPISecurityAndUnsafeStorage(t *testing.T) {
 		expected := 403
 		switch mode {
 		case "csrf":
-			request.Header.Del("X-Stacklane-CSRF")
+			request.Header.Del("X-Dockspire-CSRF")
 		case "origin":
 			request.Header.Set("Origin", "http://foreign.invalid")
 		case "confirmation":
@@ -367,7 +367,7 @@ func TestRevisionCleanupBatchAndHTTPReviewProtection(t *testing.T) {
 		request := archiveRequest(t, handler, path, string(body))
 		expected := 403
 		if mode == "csrf" {
-			request.Header.Del("X-Stacklane-CSRF")
+			request.Header.Del("X-Dockspire-CSRF")
 		} else if mode == "origin" {
 			request.Header.Set("Origin", "http://foreign.invalid")
 		} else {

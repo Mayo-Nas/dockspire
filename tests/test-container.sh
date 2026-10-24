@@ -7,8 +7,8 @@ expected_version=${2:-dev}
 compose_file="$(cd -- "$(dirname "$0")/../deploy" && pwd)/compose.yaml"
 (
   unset DOCKSPIRE_IMAGE DOCKSPIRE_EXTERNAL_URL DOCKSPIRE_BIND_ADDRESS DOCKSPIRE_HTTP_PORT
-  [[ $(docker compose --env-file /dev/null -f "$compose_file" config --images) == ghcr.io/mayo-nas/dockspire:v0.2.0 ]]
-  [[ $(DOCKSPIRE_IMAGE= docker compose --env-file /dev/null -f "$compose_file" config --images) == ghcr.io/mayo-nas/dockspire:v0.2.0 ]]
+  [[ $(docker compose --env-file /dev/null -f "$compose_file" config --images) == ghcr.io/mayo-nas/dockspire:v0.3.0 ]]
+  [[ $(DOCKSPIRE_IMAGE= docker compose --env-file /dev/null -f "$compose_file" config --images) == ghcr.io/mayo-nas/dockspire:v0.3.0 ]]
   [[ $(DOCKSPIRE_IMAGE="$image" docker compose --env-file /dev/null -f "$compose_file" config --images) == "$image" ]]
 )
 printf '%s\n' 'Compose template image selection: default, empty and explicit override passed'
@@ -31,13 +31,13 @@ for scenario in http https http-passwordless https-passwordless; do
   command_args=()
   curl_args=()
   health_args=()
-  cookie_name=stacklane_session
+  cookie_name=dockspire_session
   if [[ "$scheme" == https ]]; then
     port_in=9443
     command_args=(--https --setup --data-dir /appdata)
     curl_args=(-k)
     health_args=(--https)
-    cookie_name=__Host-stacklane_session
+    cookie_name=__Host-dockspire_session
   fi
   [[ -z $(docker ps -aq --filter "name=^/$name$") ]]
   ! docker volume inspect --format '{{.Name}}' "$volume" >/dev/null 2>&1
@@ -62,11 +62,11 @@ for scenario in http https http-passwordless https-passwordless; do
   }
   set_base
   ready
-  docker exec "$name" /stacklane --healthcheck "${health_args[@]}"
-  docker exec "$name" /stacklane --check-installation --data-dir /appdata
+  docker exec "$name" /dockspire --healthcheck "${health_args[@]}"
+  docker exec "$name" /dockspire --check-installation --data-dir /appdata
   [[ $(curl "${curl_args[@]}" -sS -o /dev/null -w '%{http_code}' "$base/api/inventory") == 401 ]]
   if [[ "$scheme" == https ]]; then
-    fingerprint_before=$(docker exec "$name" /stacklane --tls-fingerprint --data-dir /appdata)
+    fingerprint_before=$(docker exec "$name" /dockspire --tls-fingerprint --data-dir /appdata)
     [[ "$fingerprint_before" == 'SHA256 Fingerprint='* ]]
     cert_before=$(curl -ksS -o /dev/null -w '%{certs}' "$base/api/health")
   fi
@@ -92,8 +92,8 @@ for scenario in http https http-passwordless https-passwordless; do
     csrf=$(printf '%s\n' "$headers" | sed -n 's/.*"csrfToken":"\([^"]*\)".*/\1/p')
     [[ -n "$csrf" ]]
     [[ $(curl "${curl_args[@]}" -sS -o /dev/null -w '%{http_code}' -H "Cookie: $cookie" -H "Origin: $base" -H 'Content-Type: application/json' --data-binary '{}' "$base/api/auth/logout") == 403 ]]
-    [[ $(curl "${curl_args[@]}" -sS -o /dev/null -w '%{http_code}' -H "Cookie: $cookie" -H 'Origin: https://evil.example.test' -H "X-Stacklane-CSRF: $csrf" -H 'Content-Type: application/json' --data-binary '{}' "$base/api/auth/logout") == 403 ]]
-    [[ $(curl "${curl_args[@]}" -sS -o /dev/null -w '%{http_code}' -H "Cookie: $cookie" -H "Origin: $base" -H "X-Stacklane-CSRF: $csrf" -H 'Content-Type: application/json' --data-binary '{}' "$base/api/auth/logout") == 200 ]]
+    [[ $(curl "${curl_args[@]}" -sS -o /dev/null -w '%{http_code}' -H "Cookie: $cookie" -H 'Origin: https://evil.example.test' -H "X-Dockspire-CSRF: $csrf" -H 'Content-Type: application/json' --data-binary '{}' "$base/api/auth/logout") == 403 ]]
+    [[ $(curl "${curl_args[@]}" -sS -o /dev/null -w '%{http_code}' -H "Cookie: $cookie" -H "Origin: $base" -H "X-Dockspire-CSRF: $csrf" -H 'Content-Type: application/json' --data-binary '{}' "$base/api/auth/logout") == 200 ]]
   fi
   if [[ "$scheme" == https ]]; then
     printf '%s\n' "$headers" | grep -qi 'Secure'
@@ -107,7 +107,7 @@ for scenario in http https http-passwordless https-passwordless; do
   ready
   curl "${curl_args[@]}" -sSf "$base/api/auth/setup" | grep -q '"required":false'
   if [[ "$scheme" == https ]]; then
-    [[ $(docker exec "$name" /stacklane --tls-fingerprint --data-dir /appdata) == "$fingerprint_before" ]]
+    [[ $(docker exec "$name" /dockspire --tls-fingerprint --data-dir /appdata) == "$fingerprint_before" ]]
     cert_after=$(curl -ksS -o /dev/null -w '%{certs}' "$base/api/health")
     [[ -n "$cert_before" && "$cert_before" == "$cert_after" ]]
   fi

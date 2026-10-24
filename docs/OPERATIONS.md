@@ -4,19 +4,19 @@ For first installation and certificate verification, start with [INSTALL.md](INS
 
 ## Administrator access
 
-v0.1.1 containers start HTTP on 8787 and browser administrator setup without a token. Use a trusted management network: HTTP has no transport encryption and the first reachable client can claim the administrator during the setup window. Optional HTTPS is available. Setup expires after five minutes; restart app if unfinished. The fixed username is admin. Passwords have no length/composition policy; explicit matching blank browser fields persist passwordless access and take every visitor directly to the dashboard. Anyone who can reach that instance can control its Docker host. Setup cannot replace an existing administrator, and existing password accounts remain protected. Locally retained v0.1.0 keeps its tagged HTTPS/token instructions; see INSTALL.md before upgrading.
+Containers start HTTP on 8787 and browser administrator setup without a token. Use a trusted management network: HTTP has no transport encryption and the first reachable client can claim the administrator during the setup window. Optional HTTPS is available. Setup expires after five minutes; restart app if unfinished. The fixed username is admin. Passwords have no length/composition policy; explicit matching blank browser fields persist passwordless access and take every visitor directly to the dashboard. Anyone who can reach that instance can control its Docker host. Setup cannot replace an existing administrator, and existing password accounts remain protected.
 
 For password accounts, sign-out revokes the browser session; sessions expire after eight hours and end on restart. Passwordless mode hides sign-out and automatically creates a new browser session without sign-in; per-browser CSRF and exact Host/Origin checks still protect mutations. Password verification is limited per actual connection source, with one expensive verification at a time. Forwarded address headers are ignored. Clients sharing a NAT or reverse proxy share that source allowance; restrict access to the management network. Setup attempts share that allowance. Restarting clears temporary throttling state without changing stored access mode.
 
-Native/legacy operation can initialize an administrator offline using piped private input, with the server stopped:
+Native installations can initialize an administrator offline using piped private input, with the server stopped:
 
 ```sh
-stacklane --data-dir ./data --init-admin < /path/to/private/password-file
+dockspire --data-dir ./data --init-admin < /path/to/private/password-file
 ```
 
 Never put passwords in arguments, environment variables, shell history or chat. Nonempty offline stdin is literal UTF-8: trailing newlines, spaces and control characters are part of the password, with no trimming. Keep a password file's exact intended contents; empty EOF fails safely and cannot select passwordless mode. Offline input is bounded to 1 MiB and must also fit a 1 MiB encoded JSON login request; browser JSON bodies share that generic transport limit, including escaping and both setup fields. Oversize input is rejected, never truncated. Remove temporary plaintext input files after use. Do not run more than one server or maintenance process against a library.
 
-The Compose examples below use the downloaded `dockspire-compose.yaml`. For source-built or older installations, substitute the actual base filename and retain every existing `-f` override argument.
+The Compose examples below use the downloaded `dockspire-compose.yaml`. For source-built or customized installations, substitute the actual base filename and retain every existing `-f` override argument.
 
 To reset a forgotten password in the container installation:
 
@@ -86,9 +86,9 @@ Offline commands run with the server stopped, as the data owner, against unused 
 
 ```sh
 mkdir -p ../backups
-stacklane --data-dir ./data --backup ../backups/library.zip
-stacklane --data-dir ./data --export-stack example-stack --backup ../backups/example-stack.zip
-stacklane --data-dir ./restored-data --restore ../backups/library.zip
+dockspire --data-dir ./data --backup ../backups/library.zip
+dockspire --data-dir ./data --export-stack example-stack --backup ../backups/example-stack.zip
+dockspire --data-dir ./restored-data --restore ../backups/library.zip
 ```
 
 A selected-stack export is not a complete library restore archive. Library archives preserve saved configuration, revisions and retained jobs with a versioned manifest and checksums; they are not encrypted or independently signed. Restore rejects unsafe paths/links, duplicate entries, invalid sizes/versions/checksums and inconsistent references. It never merges into an existing library. The content limit is 128 MiB/20,000 files, with 512 KiB per library file.
@@ -104,16 +104,17 @@ docker compose -f dockspire-compose.yaml start app
 
 A restored library needs its own administrator/TLS setup. Inspect configuration and recovery state before reviewing any deployment. Restoring records does not authorize adoption of external containers or restore workload data. Moving a library to a new path may affect ownership checks; plan migration explicitly.
 
-## Host packages and compatibility
+## Host packages
 
-Docker Engine and the Compose plugin used to launch the application are host-managed. Dockspire does not install or upgrade host packages. Its runtime image bundles a separately pinned Compose executable for stack operations. The optional host helper is not connected by the default installation; its runtime support and maintenance scripts remain available for existing installations.
+Docker Engine and the host Compose plugin remain host-managed. Dockspire does not install or upgrade host packages. Its runtime image bundles a separately pinned Compose executable for stack operations.
 
-The unchanged service template is now `deploy/host-helper/stacklane-host.service`. Existing helper maintainers can stage that file, a reviewed Linux `stacklane` executable built from `cmd/dockspire`, and the needed `scripts/*host*.sh` maintenance scripts together in a private directory. The scripts expect these files beside them; review each script before explicitly running it with root privileges on the intended Linux host. Keep existing helper service/socket paths and container overrides. The retired preview Compose override used old HTTP/host-Compose settings and must not be applied to the current container template.
-For `restrict-host-helper.sh`, stage a `SHA256SUMS` file from the verified build that includes the `stacklane` executable; the replacement script verifies it before installation.
+The optional host helper provides Docker version checks and signed package-list refreshes; package installation stays disabled. It is not connected by the default installation. Its service is [deploy/host-helper/dockspire-host.service](../deploy/host-helper/dockspire-host.service), with `/run/dockspire-host/control.sock` and private state in `/var/lib/dockspire-host`.
 
-Existing formats and native executable names retain `stacklane`, `STACKLANE_*`, the `stacklane-library` archive kind and related compatibility identifiers. The product/browser name is Dockspire. Preserve an installation's project name and data mount when upgrading; see [INSTALL.md](INSTALL.md) for backup and rollback.
+For an authorized helper installation, stage that service, the Linux `dockspire` executable built from `cmd/dockspire`, and the reviewed `scripts/*host*.sh` maintenance scripts together. The scripts expect these files beside them. `restrict-host-helper.sh` also requires a `SHA256SUMS` entry for the executable. Review root-level host changes before running them.
 
 ## Configuration identity and archive compatibility
+
+Complete library archives use the `dockspire-library` kind; selected Compose exports include `dockspire-record.json`. Previous product-name archive kinds are not accepted.
 
 Current source writes presence-aware, lossless configuration identities: an absent environment file differs from a present empty file, including raw non-UTF-8 bytes. Existing initial bundle IDs, revision directory names, applied/recovery references and operation history remain unchanged and readable. A newly saved revision or newly imported/created bundle uses the new identity scheme; old bundles are not renamed or rewritten automatically. Editor/stale-review tokens use exact current content, separately from historical persisted IDs.
 
@@ -173,10 +174,10 @@ After the backup, save the standard configuration:
 cp dockspire-compose.yaml "$backup_dir/dockspire-compose.yaml"
 ```
 
-Replace the complete `image:` value in your saved Compose file with the target release reference. For example, the current published release is:
+Replace the complete `image:` value in your saved Compose file with the target release reference. For example, after v0.3.0 is published:
 
 ```yaml
-image: ghcr.io/mayo-nas/dockspire:v0.2.0
+image: ghcr.io/mayo-nas/dockspire:v0.3.0
 ```
 
 Then recreate only Dockspire:
@@ -189,12 +190,12 @@ docker ps
 
 ### Upgrade a Docker run installation
 
-After the backup, select a released target image and replace only the stopped manager container. The example uses the current public release; change it to the release you intend to install.
+After the backup, select a released target image and replace only the stopped manager container. The example targets `v0.3.0`; confirm it is published before pulling, or select another released target.
 
 The current data-volume name is read from the stopped container, including a volume created by an earlier rollback.
 
 ```sh
-target_image=ghcr.io/mayo-nas/dockspire:v0.2.0
+target_image=ghcr.io/mayo-nas/dockspire:v0.3.0
 data_volume=$(docker inspect --format '{{range .Mounts}}{{if and (eq .Destination "/appdata") (eq .Type "volume")}}{{.Name}}{{end}}{{end}}' "$container")
 test -n "$data_volume"
 docker pull "$target_image"
@@ -303,11 +304,9 @@ docker ps
 
 Verify the original administrator, TLS state, inventory and saved stacks before resuming changes. Keep the upgraded data and backups until recovery is verified; workload data requires its own restore plan.
 
-### Source-built and older installations
+### Source-built installations
 
-Source builds must keep their explicit local-image selection and existing files; build a new local tag, back up first, and use `docker compose up -d --no-deps --pull never app` from the existing `deploy/` directory. Retain the previous local image. For older base filenames, substitute the actual filename and retain every override.
-
-Existing v0.1.0 keeps HTTPS on 9443 and its matching tagged configuration. Passwordless/version-2 data may be rejected by older releases: restore a compatible whole-data backup before downgrading. Never erase the administrator file to force setup. Legacy `stacklane-preview` installations use different project/data/access settings and require a deliberate migration preserving their existing data, ports and administrator/TLS state.
+Source builds must keep their explicit local-image selection and existing files; build a new local tag, back up first, and use `docker compose up -d --no-deps --pull never app` from the existing `deploy/` directory. Retain the previous local image. For customized base filenames, substitute the actual filename and retain every override.
 
 ## Compose settings and diagnostics
 
@@ -320,7 +319,7 @@ For troubleshooting, validate the saved configuration, view recent logs, or run 
 ```sh
 docker compose -f dockspire-compose.yaml config --quiet
 docker compose -f dockspire-compose.yaml logs --tail 50 app
-docker compose -f dockspire-compose.yaml exec -T app /stacklane --healthcheck
+docker compose -f dockspire-compose.yaml exec -T app /dockspire --healthcheck
 ```
 
 The automatic healthcheck may take a short time to report healthy. Never use `docker compose -f dockspire-compose.yaml down -v` to upgrade or reset access.
@@ -329,7 +328,7 @@ The automatic healthcheck may take a short time to report healthy. Never use `do
 
 To pin an immutable image, replace the versioned image above with the complete `ghcr.io/mayo-nas/dockspire@sha256:...` reference from the release notes. To publish only on loopback, replace `-p 8787:8787` with `-p 127.0.0.1:8787:8787`. For DNS access, append `--allow-http --setup --data-dir /appdata --external-url http://docker.example.test:8787` after the image name, using your exact origin. App arguments go after the image and replace its default command.
 
-Optional startup diagnostics are available with `docker logs --tail 50 dockspire` and `docker exec dockspire /stacklane --healthcheck`.
+Optional startup diagnostics are available with `docker logs --tail 50 dockspire` and `docker exec dockspire /dockspire --healthcheck`.
 
 ## Build and start the current source
 
@@ -358,11 +357,11 @@ DOCKSPIRE_IMAGE=dockspire:local
 # DOCKSPIRE_BIND_ADDRESS=127.0.0.1
 ```
 
-The current template defaults to `ghcr.io/mayo-nas/dockspire:v0.2.0` when `DOCKSPIRE_IMAGE` is unset or empty; older saved templates may still require it. For a source build, keep the explicit local-image selection above so Compose uses your build. A shell export overrides `.env`. The HTTP template accepts IP addresses and localhost by default. DNS access requires an exact `http://...` external URL; forwarded headers are ignored. With `DOCKSPIRE_HTTP_PORT=8788`, use `http://VM-IP:8788`.
+The current template defaults to `ghcr.io/mayo-nas/dockspire:v0.3.0` when `DOCKSPIRE_IMAGE` is unset or empty. For a source build, keep the explicit local-image selection above so Compose uses your build. A shell export overrides `.env`. The HTTP template accepts IP addresses and localhost by default. DNS access requires an exact `http://...` external URL; forwarded headers are ignored. With `DOCKSPIRE_HTTP_PORT=8788`, use `http://VM-IP:8788`.
 
 ## Optional HTTPS
 
-This section uses the downloaded `dockspire-compose.yaml`. For source-built or older installations using `compose.yaml`, substitute `-f compose.yaml` for the base-file argument below and preserve the existing configuration. For an existing `docker run` installation, retain its current settings and use a deliberate migration; do not start another manager against the same volume.
+This section uses the downloaded `dockspire-compose.yaml`. For source-built or customized installations using `compose.yaml`, substitute `-f compose.yaml` for the base-file argument below and preserve the existing configuration. For an existing `docker run` installation, retain its current settings and use a deliberate migration; do not start another manager against the same volume.
 
 Native `--https` still defaults to 9443; the container can serve TLS on its existing 8787 mapping. Set `DOCKSPIRE_TLS_HOSTS` to your DNS/IP before first TLS startup and save `compose.override.yaml` beside `dockspire-compose.yaml`:
 
@@ -371,26 +370,14 @@ services:
   app:
     command: ["--https", "--listen", ":8787", "--setup", "--data-dir", "/appdata", "--tls-hosts", "${DOCKSPIRE_TLS_HOSTS:-}", "--external-url", "${DOCKSPIRE_EXTERNAL_URL:-}"]
     healthcheck:
-      test: ["CMD", "/stacklane", "--healthcheck", "--https", "--listen", "127.0.0.1:8787"]
+      test: ["CMD", "/dockspire", "--healthcheck", "--https", "--listen", "127.0.0.1:8787"]
 ```
 
 Run `docker compose -f dockspire-compose.yaml -f compose.override.yaml up -d --no-deps app` and use `https://VM-IP:8787`. Any external URL must use `https://` in this mode. For trusted certificates, mount a private certificate directory read-only and add `--tls-cert /certs/cert.pem --tls-key /certs/key.pem` to the command; keep the listener/healthcheck settings above. Include matching certificate SANs and renew/restart externally. Explicit `-f` selection does not load overrides automatically; retain both file arguments for subsequent HTTPS operations.
 
-Generated self-signed TLS identities persist; existing identities are not silently replaced to add SANs. Authenticate a self-signed certificate before entering credentials. From a trusted VM console/SSH session, `docker compose -f dockspire-compose.yaml -f compose.override.yaml exec -T app /stacklane --tls-fingerprint --data-dir /appdata` prints its public SHA-256 fingerprint for comparison with the browser certificate viewer. This is an optional HTTPS trust diagnostic, not a setup token. Custom certificates need `--tls-cert` pointing to the served public certificate for this check. Saved TLS keys remain private even when HTTP is used.
+Generated self-signed TLS identities persist; existing identities are not silently replaced to add SANs. Authenticate a self-signed certificate before entering credentials. From a trusted VM console/SSH session, `docker compose -f dockspire-compose.yaml -f compose.override.yaml exec -T app /dockspire --tls-fingerprint --data-dir /appdata` prints its public SHA-256 fingerprint for comparison with the browser certificate viewer. This is an optional HTTPS trust diagnostic, not a setup token. Custom certificates need `--tls-cert` pointing to the served public certificate for this check. Saved TLS keys remain private even when HTTP is used.
 
 An existing TLS reverse proxy can use the native HTTP listener with `--listen 0.0.0.0:8787 --setup --data-dir /appdata --external-url https://docker.example.test` (without `--allow-http`). Restrict that backend to loopback/a private proxy network and preserve Host. Secure browser cookies follow the pinned HTTPS origin; forwarded headers never authorize another origin. `--allow-http` requires an HTTP external URL; direct `--https` requires HTTPS.
-
-## v0.1.1 compatibility
-
-The v0.1.0 and v0.1.1 GHCR versions have been retired; fresh pulls are unavailable. Their Git tags, source and release history remain available for reference. This compatibility guidance applies only to existing deployments or locally retained images. Use the current versioned instructions for a fresh installation.
-
-Existing v0.1.1 installations use the same HTTP setup, Compose project and persistent volume as v0.1.2. Keep their deployed files, overrides, administrator and data; follow [upgrade and rollback](#upgrade-and-rollback) to select the new image deliberately. The historical [v0.1.1 release](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.1.1) and its tagged files remain available. v0.1.2 adds no storage migration.
-
-## Locally retained v0.1.0 compatibility
-
-A locally retained v0.1.0 image uses HTTPS 9443 and the old setup-token flow. It does not recognize `--allow-http`. Keep its deployed configuration; its [tagged Compose file](https://github.com/Mayo-Nas/dockspire/blob/v0.1.0/deploy/compose.yaml) and [matching TLS/setup guide](https://github.com/Mayo-Nas/dockspire/blob/v0.1.0/docs/INSTALL.md) are historical references, not instructions for a fresh registry installation. The current HTTP template does not match that image.
-
-Before upgrading, record and retain the old local image ID/digest, and preserve the existing Compose files, overrides, project/data volume, administrator and TLS state. Follow [upgrade and rollback](#upgrade-and-rollback) for a private stopped whole-data backup with original numeric ownership and permissions. Recovery requires that compatible backup and a retained old image; the retired registry tag cannot be pulled again. Source pushes do not publish images or update running v0.1.0 instances.
 
 ## Optional Portainer configuration import
 
@@ -398,9 +385,9 @@ Portainer file import is available without a direct source connection: choose **
 
 Use matching checkout files in deploy/. Its Portainer override supplies the HTTP command. If optional HTTPS is also enabled, merge the command lists with the TLS settings above; the last command override replaces earlier lists rather than appending.
 
-Dockspire can preview and save configuration copies from supported Portainer Docker Compose stacks on the same Docker host. Importing does not stop Portainer, adopt workloads, edit its source files, or deploy containers. Copies stay read-only until a separate [takeover review](OPERATIONS.md#portainer-takeover) is explicitly confirmed and completes. No Portainer API token, database access, or full Portainer data-volume mount is needed. Takeover is included since v0.1.1; it is unavailable in the v0.1.0 image.
+Dockspire can preview and save configuration copies from supported Portainer Docker Compose stacks on the same Docker host. Importing does not stop Portainer, adopt workloads, edit its source files, or deploy containers. Copies stay read-only until a separate [takeover review](OPERATIONS.md#portainer-takeover) is explicitly confirmed and completes. No Portainer API token, database access, or full Portainer data-volume mount is needed.
 
-Download [deploy/compose.portainer.yaml](../deploy/compose.portainer.yaml) from the same source revision as the primary Compose file, saving it beside `dockspire-compose.yaml` as `compose.portainer.yaml`. The commands below use the downloaded base file; for source-built or older installations, substitute the actual base filename and retain existing overrides. Enable it only when authorized to read those stack definitions, which can contain secrets even without associated environment files. In your private local `.env`, set:
+Download [deploy/compose.portainer.yaml](../deploy/compose.portainer.yaml) from the same source revision as the primary Compose file, saving it beside `dockspire-compose.yaml` as `compose.portainer.yaml`. The commands below use the downloaded base file; for source-built or customized installations, substitute the actual base filename and retain existing overrides. Enable it only when authorized to read those stack definitions, which can contain secrets even without associated environment files. In your private local `.env`, set:
 
 ```dotenv
 # Example only: use the actual authorized host compose subdirectory.

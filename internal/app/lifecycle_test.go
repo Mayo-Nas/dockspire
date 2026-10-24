@@ -368,7 +368,7 @@ func TestLifecycleHTTPRequiresCSRFAndConfirmation(t *testing.T) {
 		r := httptest.NewRequest("POST", "http://localhost"+path, strings.NewReader(body))
 		r.Header.Set("Content-Type", "application/json")
 		r.Header.Set("Origin", origin)
-		r.Header.Set("X-Stacklane-CSRF", token)
+		r.Header.Set("X-Dockspire-CSRF", token)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, r)
 		return w

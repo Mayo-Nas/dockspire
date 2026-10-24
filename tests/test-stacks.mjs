@@ -185,7 +185,7 @@ assert.equal(archiveRequests.length, 0, 'Opening the disclosure must not downloa
 await buttons().find(button => button.textContent === 'Download library backup').events.click();
 assert.equal(archiveRequests.at(-1).path, '/api/library/backup');
 assert.equal(archiveRequests.at(-1).options.method, 'POST');
-assert.equal(archiveRequests.at(-1).options.headers['X-Stacklane-CSRF'], 'fixture-csrf');
+assert.equal(archiveRequests.at(-1).options.headers['X-Dockspire-CSRF'], 'fixture-csrf');
 assert.deepEqual(JSON.parse(archiveRequests.at(-1).options.body), { includeSecrets: true });
 assert(archiveLinks.at(-1).filename.startsWith('dockspire-library-'));
 assert(texts(body).some(text => text.includes('handed to your browser')));
