@@ -39,14 +39,14 @@ func TestArchiveCopyFallbackNeverOverwrites(t *testing.T) {
 }
 
 func TestOfflineArchiveCLI(t *testing.T) {
-	if os.Getenv("STACKLANE_TEST_ARCHIVE_CLI") == "1" {
+	if os.Getenv("DOCKSPIRE_TEST_ARCHIVE_CLI") == "1" {
 		for i, arg := range os.Args {
 			if arg == "--" {
 				os.Args = append([]string{os.Args[0]}, os.Args[i+1:]...)
 				break
 			}
 		}
-		flag.CommandLine = flag.NewFlagSet("fixture-stacklane", flag.ExitOnError)
+		flag.CommandLine = flag.NewFlagSet("fixture-dockspire", flag.ExitOnError)
 		Run()
 		return
 	}
@@ -66,7 +66,7 @@ func TestOfflineArchiveCLI(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 		defer cancel()
 		command := exec.CommandContext(ctx, binary, append([]string{"-test.run=^TestOfflineArchiveCLI$", "--", "--docker-socket", filepath.Join(parent, "missing.sock"), "--compose-binary", filepath.Join(parent, "missing-compose")}, args...)...)
-		command.Env = append(os.Environ(), "STACKLANE_TEST_ARCHIVE_CLI=1")
+		command.Env = append(os.Environ(), "DOCKSPIRE_TEST_ARCHIVE_CLI=1")
 		output, err := command.CombinedOutput()
 		if (err == nil) != wantSuccess || ctx.Err() != nil {
 			t.Fatalf("offline command failed: %v %s", err, output)
@@ -136,6 +136,10 @@ func TestLibraryBackupRestoreAndPortableExport(t *testing.T) {
 		t.Fatal(err)
 	}
 	files := archiveContents(t, archive)
+	var manifest libraryManifest
+	if err := json.Unmarshal(files["manifest.json"], &manifest); err != nil || manifest.Kind != "dockspire-library" || manifest.Version != 2 {
+		t.Fatal("backup did not use the current Dockspire archive contract")
+	}
 	if !strings.Contains(string(files["stacks/example/record.json"]), job.ID) {
 		t.Fatal("backup omitted deployment attempt")
 	}
@@ -190,7 +194,7 @@ func TestLibraryBackupRestoreAndPortableExport(t *testing.T) {
 			t.Fatal("portable export changed selected source", name)
 		}
 	}
-	if !strings.Contains(string(exported[".env"]), "fixture-private-value") || len(exported["stacklane-record.json"]) == 0 {
+	if !strings.Contains(string(exported[".env"]), "fixture-private-value") || len(exported["dockspire-record.json"]) == 0 {
 		t.Fatal("export was masked or omitted metadata")
 	}
 	if err := restoreLibrary(export, filepath.Join(parent, "wrong-kind")); err == nil {
@@ -246,7 +250,7 @@ func writeTestArchive(t *testing.T, path string, files map[string][]byte, alter 
 	}
 	defer file.Close()
 	writer := zip.NewWriter(file)
-	manifest := libraryManifest{Version: 1, Kind: "stacklane-library", Files: map[string]string{}}
+	manifest := libraryManifest{Version: 1, Kind: "dockspire-library", Files: map[string]string{}}
 	for name, raw := range files {
 		entry, err := writer.Create(name)
 		if err != nil {
@@ -336,7 +340,7 @@ func TestRestoreRejectsUnsafeCorruptAndIncompleteArchives(t *testing.T) {
 			}
 			entries, _ := os.ReadDir(parent)
 			for _, entry := range entries {
-				if strings.HasPrefix(entry.Name(), ".stacklane-restore-") {
+				if strings.HasPrefix(entry.Name(), ".dockspire-restore-") {
 					t.Fatal("failed restore retained staging files")
 				}
 			}

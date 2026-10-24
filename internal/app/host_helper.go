@@ -15,10 +15,10 @@ import (
 	"time"
 )
 
-const hostSocket = "/run/stacklane-host/control.sock"
-const hostState = "/var/lib/stacklane-host"
+const hostSocket = "/run/dockspire-host/control.sock"
+const hostState = "/var/lib/dockspire-host"
 
-const hostUpdatesDisabled = "Docker and Compose package installation is disabled in this preview. Versions and package-list refreshes remain available. Use SSH for host upgrades."
+const hostUpdatesDisabled = "Docker and Compose package installation is disabled. Versions and package-list refreshes remain available. Use SSH for host upgrades."
 
 type HostJob struct {
 	ID         string        `json:"id"`

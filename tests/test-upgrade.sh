@@ -51,6 +51,10 @@ new_version=${3:?Missing candidate version}
 [[ "$new_version" == dev || "$new_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
 for image in "$old_image" "$new_image"; do
  [[ $(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image") == linux/amd64 ]]
+ image_binary=$(docker image inspect --format '{{json .Config.Entrypoint}}' "$image" | jq -er 'select(type == "array" and length == 1) | .[0] | select(type == "string" and (contains("\n") | not) and test("^/[a-z0-9][a-z0-9._-]{0,127}$"))')
+ [[ "$image_binary" != /upgrade-probe ]]
+ if [[ "$image" == "$old_image" ]]; then old_binary=$image_binary; fi
+ if [[ "$image" == "$new_image" ]]; then new_binary=$image_binary; fi
 done
 probe=${DOCKSPIRE_UPGRADE_PROBE:-}
 probe_mount=()
@@ -264,9 +268,10 @@ for scenario in http https http-passwordless https-passwordless; do
  for phase in old candidate rollback candidate-preserved; do
   printf 'Upgrade fixture: scenario=%s phase=%s\n' "$scenario" "$phase"
   running_image=$old_image
+  running_binary=$old_binary
   expected_version=v0.2.0
   active_volume=$volume
-  if [[ "$phase" == candidate || "$phase" == candidate-preserved ]]; then running_image=$new_image; expected_version=$new_version; fi
+  if [[ "$phase" == candidate || "$phase" == candidate-preserved ]]; then running_image=$new_image; running_binary=$new_binary; expected_version=$new_version; fi
   if [[ "$phase" == rollback ]]; then
    docker volume create --label "io.dockspire.upgrade-test=$owner" "$rollback_volume" >/dev/null
    rollback_created=true
@@ -278,7 +283,7 @@ for scenario in http https http-passwordless https-passwordless; do
   command=(--demo --setup --listen ":$port_in" --data-dir /appdata "${transport[@]}")
   if [[ -n "$probe" && "$phase" == rollback ]]; then
    entrypoint=(--entrypoint /upgrade-probe)
-   command=(--exec rollback -- "${command[@]}")
+   command=(--exec rollback "$running_binary" -- "${command[@]}")
   fi
   docker create --pull never --name "$name" --label "io.dockspire.upgrade-test=$owner" \
    --read-only --cap-drop ALL --security-opt no-new-privileges:true \
@@ -302,7 +307,7 @@ for scenario in http https http-passwordless https-passwordless; do
    emit_probe_lines "$probe_logs"
   fi
   if [[ "$scheme" == https ]]; then
-   current_fingerprint=$(docker exec "$name" /stacklane --tls-fingerprint --data-dir /appdata)
+   current_fingerprint=$(docker exec "$name" "$running_binary" --tls-fingerprint --data-dir /appdata)
    [[ "$current_fingerprint" == 'SHA256 Fingerprint='* ]]
    if [[ -z "$fingerprint" ]]; then fingerprint=$current_fingerprint; else [[ "$current_fingerprint" == "$fingerprint" ]]; fi
   fi
@@ -321,10 +326,18 @@ for scenario in http https http-passwordless https-passwordless; do
   fi
   cookie=$(printf '%s\n' "$headers" | sed -n 's/^[Ss]et-[Cc]ookie: \([^;]*\);.*/\1/p' | tr -d '\r')
   [[ -n "$cookie" ]]
+  [[ "$cookie" =~ ^(__Host-)?[a-z][a-z0-9_-]{0,31}_session=[A-Za-z0-9_-]{43}$ ]]
+  cookie_name=${cookie%%=*}
+  cookie_stem=${cookie_name#__Host-}
+  [[ "$cookie_stem" == *_session ]]
+  cookie_stem=${cookie_stem%_session}
+  [[ "$cookie_stem" =~ ^[a-z][a-z0-9_-]{0,31}$ ]]
+  if [[ "$scheme" == https ]]; then [[ "$cookie_name" == __Host-* ]]; else [[ "$cookie_name" != __Host-* ]]; fi
+  csrf_header="X-$cookie_stem-CSRF"
   session=$(curl "${curl_args[@]}" -fsS -H "Cookie: $cookie" "$base/api/session")
   jq -e --arg version "$expected_version" --argjson passwordless "$passwordless" '.version == $version and .passwordless == $passwordless and .deployEnabled == false' <<< "$session" >/dev/null
   csrf=$(jq -er '.csrfToken | select(length > 0)' <<< "$session")
-  api() { curl "${curl_args[@]}" -fsS -H "Cookie: $cookie" -H "Origin: $base" -H "X-Stacklane-CSRF: $csrf" -H 'Content-Type: application/json' "$@"; }
+  api() { curl "${curl_args[@]}" -fsS -H "Cookie: $cookie" -H "Origin: $base" -H "$csrf_header: $csrf" -H 'Content-Type: application/json' "$@"; }
   if [[ "$phase" == candidate || "$phase" == rollback ]]; then
    for index in "${!baseline_records[@]}"; do
     record=$(api "$base/api/stacks/${stack_names[$index]}" | jq -Sc .)

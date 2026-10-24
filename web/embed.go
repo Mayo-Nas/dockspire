@@ -5,5 +5,5 @@ import "embed"
 
 // Assets contains runtime browser files only; Go source is never served.
 //
-//go:embed *.html *.css *.js favicon.ico brand/*
+//go:embed *.html *.css *.js brand/*
 var Assets embed.FS

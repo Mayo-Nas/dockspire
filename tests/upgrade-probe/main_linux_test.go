@@ -127,22 +127,37 @@ func TestSecurityStateRejectsTruncatedInput(t *testing.T) {
 
 func TestExecPreservesArgumentsAndMeasuresFirst(t *testing.T) {
 	app := []string{"--demo", "--setup", "--listen", ":8787", "--data-dir", "/appdata", "--allow-http"}
-	args := append([]string{"--exec", "rollback", "--"}, app...)
-	measured := false
-	var output bytes.Buffer
-	status := run(args, &output, func(label string) { measured = label == "rollback" }, func(binary string, argv, _ []string) error {
-		if !measured || binary != "/stacklane" || !reflect.DeepEqual(argv, append([]string{"/stacklane"}, app...)) {
-			t.Fatal("execution context/arguments changed")
+	for _, binary := range []string{"/dockspire", "/fixture-app"} {
+		args := append([]string{"--exec", "rollback", binary, "--"}, app...)
+		measured := false
+		var output bytes.Buffer
+		status := run(args, &output, func(label string) { measured = label == "rollback" }, func(actual string, argv, _ []string) error {
+			if !measured || actual != binary || !reflect.DeepEqual(argv, append([]string{binary}, app...)) {
+				t.Fatal("execution context/arguments changed")
+			}
+			return syscall.ENOENT
+		})
+		if status != 1 || output.String() != "probe exec_errno=2\n" {
+			t.Fatal("exec failure not sanitized")
 		}
-		return syscall.ENOENT
-	})
-	if status != 1 || output.String() != "probe exec_errno=2\n" {
-		t.Fatal("exec failure not sanitized")
+	}
+}
+
+func TestAppBinaryIsARootExecutableName(t *testing.T) {
+	for _, binary := range []string{"/dockspire", "/fixture-app", "/app.v3", "/a_1"} {
+		if !validAppBinary(binary) {
+			t.Fatal("valid executable rejected")
+		}
+	}
+	for _, binary := range []string{"", "app", "/", "/bin/sh", "/upgrade-probe", "/../app", "/-app", "/app PRIVATE_CANARY", "/app\nPRIVATE_CANARY", "/" + strings.Repeat("a", 129)} {
+		if validAppBinary(binary) {
+			t.Fatal("invalid executable accepted")
+		}
 	}
 }
 
 func TestInvocationIsClosedAndDoesNotEchoInput(t *testing.T) {
-	for _, args := range [][]string{{"--inspect-only", "PRIVATE_CANARY"}, {"--exec", "rollback", "--", "--data-dir", "/other"}} {
+	for _, args := range [][]string{{"--inspect-only", "PRIVATE_CANARY"}, {"--exec", "rollback", "/dockspire", "--", "--data-dir", "/other"}} {
 		var output bytes.Buffer
 		status := run(args, &output, func(string) { t.Fatal("invalid measurement invoked") }, func(string, []string, []string) error { t.Fatal("invalid exec invoked"); return nil })
 		if status != 2 || output.String() != "probe invocation invalid\n" {

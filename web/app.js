@@ -35,7 +35,7 @@ async function api(path, method = 'GET', body, signal) {
   const options = { method, cache: 'no-store', signal: AbortSignal.timeout(method === 'POST' ? 175000 : 25000) };
   if (signal) options.signal = AbortSignal.any([signal, options.signal]);
   if (method === 'POST') {
-    options.headers = { 'Content-Type': 'application/json', 'X-Stacklane-CSRF': session.csrfToken };
+    options.headers = { 'Content-Type': 'application/json', 'X-Dockspire-CSRF': session.csrfToken };
     options.body = JSON.stringify(body || {});
   }
   const response = await fetch(path, options);

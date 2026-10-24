@@ -27,7 +27,7 @@ func archiveRequest(t *testing.T, handler http.Handler, path, body string) *http
 	request := httptest.NewRequest("POST", "http://localhost"+path, strings.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Origin", "http://localhost")
-	request.Header.Set("X-Stacklane-CSRF", auth["csrfToken"].(string))
+	request.Header.Set("X-Dockspire-CSRF", auth["csrfToken"].(string))
 	return request
 }
 
@@ -104,7 +104,7 @@ func TestOnlineArchiveRoundTripAndSelectedExport(t *testing.T) {
 			if !strings.Contains(string(files["compose.yaml"]), "nginx:stable") || string(files["stack.env"]) != input.Environment {
 				t.Fatal("export did not preserve selected source bytes")
 			}
-			if len(files) != 5 || files["stacklane-record.json"] == nil {
+			if len(files) != 5 || files["dockspire-record.json"] == nil {
 				t.Fatal("export contains unrelated data")
 			}
 			var manifest libraryManifest
@@ -257,7 +257,7 @@ func TestOnlineArchiveHTTPGuardsFailuresAndNoRestoreEndpoint(t *testing.T) {
 			case "origin":
 				r.Header.Set("Origin", "http://attacker.invalid")
 			case "csrf":
-				r.Header.Del("X-Stacklane-CSRF")
+				r.Header.Del("X-Dockspire-CSRF")
 			case "type":
 				r.Header.Set("Content-Type", "text/plain")
 			case "method":

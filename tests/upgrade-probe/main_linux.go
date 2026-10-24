@@ -216,6 +216,22 @@ func inspect(out io.Writer, root, label string, opener func(string) (io.Closer, 
 	fmt.Fprintf(out, "probe label=%s cap_eff=%s cap_bnd=%s no_new_privs=%d status_complete=%d open_errno=%d\n", label, context.capEff, context.capBnd, context.noNewPrivs, complete, openErrno)
 }
 
+func validAppBinary(binary string) bool {
+	if len(binary) < 2 || len(binary) > 129 || binary[0] != '/' || binary == "/upgrade-probe" {
+		return false
+	}
+	for index, character := range binary[1:] {
+		if character >= 'a' && character <= 'z' || character >= '0' && character <= '9' {
+			continue
+		}
+		if index > 0 && (character == '.' || character == '_' || character == '-') {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 func validAppArgs(args []string) bool {
 	http := []string{"--demo", "--setup", "--listen", ":8787", "--data-dir", "/appdata", "--allow-http"}
 	https := []string{"--demo", "--setup", "--listen", ":9443", "--data-dir", "/appdata", "--https", "--tls-hosts", "127.0.0.1"}
@@ -228,9 +244,9 @@ func run(args []string, out io.Writer, measure func(string), execute func(string
 		measure(args[1])
 		return 0
 	}
-	if len(args) >= 4 && args[0] == "--exec" && args[1] == "rollback" && args[2] == "--" && validAppArgs(args[3:]) {
+	if len(args) >= 5 && args[0] == "--exec" && args[1] == "rollback" && validAppBinary(args[2]) && args[3] == "--" && validAppArgs(args[4:]) {
 		measure("rollback")
-		err := execute("/stacklane", append([]string{"/stacklane"}, args[3:]...), os.Environ())
+		err := execute(args[2], append([]string{args[2]}, args[4:]...), os.Environ())
 		fmt.Fprintf(out, "probe exec_errno=%d\n", errorNumber(err))
 		return 1
 	}

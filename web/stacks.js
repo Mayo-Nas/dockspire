@@ -43,7 +43,7 @@ window.stackUI = (() => {
     try {
       const response = await fetch(name ? `/api/stacks/${encodeURIComponent(name)}/export` : '/api/library/backup', {
         method: 'POST', cache: 'no-store',
-        headers: { 'Content-Type': 'application/json', 'X-Stacklane-CSRF': session.csrfToken },
+        headers: { 'Content-Type': 'application/json', 'X-Dockspire-CSRF': session.csrfToken },
         body: JSON.stringify({ includeSecrets: true }),
         signal: AbortSignal.any([controller.signal, AbortSignal.timeout(175000)]),
       });

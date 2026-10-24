@@ -10,13 +10,13 @@ report=$(mktemp "$directory/.local/diagnostics/host-refresh-diagnostic.XXXXXX")
 raw=$(mktemp)
 trap 'rm -f -- "$raw"' EXIT HUP INT TERM
 result=0
-systemd-run --quiet --wait --pipe --collect --unit="stacklane-apt-diagnostic-$(date +%s)" \
+systemd-run --quiet --wait --pipe --collect --unit="dockspire-apt-diagnostic-$(date +%s)" \
   --property=User=root --property=Group=root --property=UMask=0077 \
   --property=NoNewPrivileges=true --property=ProtectHome=true --property=PrivateTmp=true \
   --property=ProtectKernelTunables=true --property=ProtectKernelModules=true \
   --property=ProtectControlGroups=true \
   '--property=RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK' \
-  --property=ReadOnlyPaths=/usr/local/lib/stacklane-host \
+  --property=ReadOnlyPaths=/usr/local/lib/dockspire-host \
   /usr/bin/env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin HOME=/root LANG=C LC_ALL=C \
   DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l \
   /usr/bin/apt-get update -o APT::Update::Error-Mode=any >"$raw" 2>&1 || result=$?

@@ -127,7 +127,7 @@ func TestComparisonDetectsSecretOnlyChangesWithoutLeakingInReviewAPI(t *testing.
 	request := httptest.NewRequest("POST", "http://localhost/api/stacks/example/review", strings.NewReader("{}"))
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Origin", "http://localhost")
-	request.Header.Set("X-Stacklane-CSRF", auth["csrfToken"].(string))
+	request.Header.Set("X-Dockspire-CSRF", auth["csrfToken"].(string))
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	if response.Code != 200 {

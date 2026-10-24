@@ -75,7 +75,7 @@ func (l *stackLibrary) selectArchiveFiles(ctx context.Context, project string, s
 	if info, err := os.Lstat(l.root); err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return errors.New("Choose an existing library directory")
 	}
-	selection.manifest = libraryManifest{Version: 2, Kind: "stacklane-library", CreatedAt: time.Now().UTC().Format(time.RFC3339Nano), Files: map[string]string{}}
+	selection.manifest = libraryManifest{Version: 2, Kind: "dockspire-library", CreatedAt: time.Now().UTC().Format(time.RFC3339Nano), Files: map[string]string{}}
 	selection.files = map[string]string{}
 	manifest, files := &selection.manifest, selection.files
 	if project != "" {
@@ -95,7 +95,7 @@ func (l *stackLibrary) selectArchiveFiles(ctx context.Context, project string, s
 			files[name] = filepath.Join(dir, name)
 		}
 		manifest.Kind, manifest.Project = "compose-export", project
-		files["stacklane-record.json"] = filepath.Join(base, "record.json")
+		files["dockspire-record.json"] = filepath.Join(base, "record.json")
 	} else {
 		for _, group := range []string{"stacks", "jobs"} {
 			directory := filepath.Join(l.root, group)
@@ -183,7 +183,7 @@ func safeArchiveSource(root, source string) bool {
 
 func writeArchiveFiles(ctx context.Context, output string, selection archiveSelection) (err error) {
 	manifest, files := selection.manifest, selection.files
-	file, err := os.CreateTemp(filepath.Dir(output), ".stacklane-backup-")
+	file, err := os.CreateTemp(filepath.Dir(output), ".dockspire-backup-")
 	if err != nil {
 		return errors.New("Cannot create private archive")
 	}
@@ -425,13 +425,13 @@ func restoreLibrary(filename, destination string) error {
 	raw, err := io.ReadAll(io.LimitReader(stream, (4<<20)+1))
 	stream.Close()
 	var manifest libraryManifest
-	if err != nil || json.Unmarshal(raw, &manifest) != nil || (manifest.Version != 1 && manifest.Version != 2) || manifest.Kind != "stacklane-library" || len(manifest.Files) != len(entries)-1 {
+	if err != nil || json.Unmarshal(raw, &manifest) != nil || (manifest.Version != 1 && manifest.Version != 2) || manifest.Kind != "dockspire-library" || len(manifest.Files) != len(entries)-1 {
 		return errors.New("Unsupported or incomplete library backup")
 	}
 	if err := ensurePrivateDirectory(filepath.Dir(root)); err != nil {
 		return errors.New("Cannot prepare restore parent")
 	}
-	stage, err := os.MkdirTemp(filepath.Dir(root), ".stacklane-restore-")
+	stage, err := os.MkdirTemp(filepath.Dir(root), ".dockspire-restore-")
 	if err != nil {
 		return errors.New("Cannot stage restored library")
 	}

@@ -11,8 +11,8 @@
 !web/*.html
 !web/*.css
 !web/*.js
-!web/favicon.ico
-!web/brand/*.png
+!web/brand/dockspire-icon-256.png
+!web/brand/dockspire-horizontal-dark.png
 !licenses/*.txt
 !licenses/*-LICENSE
 !licenses/*-NOTICE

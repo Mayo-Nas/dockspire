@@ -1,4 +1,4 @@
-name: stacklane-demo
+name: dockspire-demo
 services:
   app:
     build:

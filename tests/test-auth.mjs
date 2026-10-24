@@ -87,7 +87,7 @@ for (const initialized of [false, true]) {
   const logout = f.requests.at(-1);
   assert.equal(logout.path, '/api/auth/logout');
   assert.equal(logout.options.method, 'POST');
-  assert.equal(logout.options.headers['X-Stacklane-CSRF'], 'fixture-csrf');
+  assert.equal(logout.options.headers['X-Dockspire-CSRF'], 'fixture-csrf');
   assert.equal(vm.runInContext('session', f.context), null);
 }
 {

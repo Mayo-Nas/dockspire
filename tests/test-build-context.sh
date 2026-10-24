@@ -14,11 +14,12 @@ mkdir "$fixture/context"
 included=(
   Dockerfile LICENSE NOTICE go.mod go.sum
   cmd/dockspire/main.go internal/app/app.go web/embed.go
-  web/index.html web/style.css web/app.js web/favicon.ico web/brand/icon.png
+  web/index.html web/style.css web/app.js web/brand/dockspire-icon-256.png web/brand/dockspire-horizontal-dark.png
   licenses/app-third-party.txt licenses/yaml-LICENSE licenses/compose-NOTICE
   deploy/compose-runtime/go.mod deploy/compose-runtime/go.sum
 )
 excluded=(
+  web/favicon.ico web/brand/dockspire-icon-64.png web/brand/dockspire-icon-128.png
   .dockerignore .env .env.production .git/config .local/settings.json .vscode/settings.json
   tests/fixture.go README.md docs/INSTALL.md scripts/run.sh
   cmd/dockspire/main_test.go internal/app/app_test.go web/embed_test.go

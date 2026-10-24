@@ -23,7 +23,7 @@ The workflow must report the selected HEAD, all four ordinary checks successful,
 
 ## Releases and independent visibility expectations
 
-1. Choose a new version tag, such as `v0.2.0`, for a reviewed/tested commit on licensed `main`. Keep existing tags unchanged. The first public release must include Dockspire's Apache 2.0 LICENSE and NOTICE. Historical v0.1.1/v0.1.2 tagged trees and release notes predate that licensing change; do not silently relabel or rebuild old artifacts.
+1. Choose a new version tag, such as `v0.3.0`, for a reviewed/tested commit on licensed `main`. Keep existing tags unchanged. Retain Dockspire's Apache 2.0 LICENSE, NOTICE and third-party notices. Never relabel or rebuild already-published artifacts.
 2. Obtain separate action-specific owner authorization for the tag, image publication, release notes and any visibility change. Run **Publish container image** manually from canonical `main`, supplying the existing tag and the expected current **repository visibility** and **package visibility** independently.
 3. The workflow verifies the selected tag belongs to main, licensed source exists, and repository/package metadata matches both expectations. It runs source/browser/installation/image/takeover/upgrade tests and exact executable scans, rejects an already-used version, and verifies destination metadata/digest again after pushing. It never changes visibility.
 4. Record the immutable digest, validation results, installation/access requirements, backup/rollback procedure and known limitations in release notes for the same tag. The image workflow does not create a GitHub Release or update existing installations.
@@ -36,7 +36,7 @@ The upgrade baseline is released v0.2.0 at `ghcr.io/mayo-nas/dockspire@sha256:26
 
 Use versioned images or immutable digests. Do not overwrite a published version, invent a second build tag or selectively promote source files. Runtime images contain the application, bundled Compose and notices; development/browser-test tooling is excluded.
 
-## Owner configuration before public launch
+## Repository configuration
 
 These are proposed settings, not changes made by this repository:
 

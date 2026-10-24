@@ -286,7 +286,7 @@ func TestStackMutationsRequireSameOriginToken(t *testing.T) {
 		req := httptest.NewRequest("POST", "/api/stacks/validate", strings.NewReader(string(body)))
 		req.Host = "localhost:8787"
 		req.Header.Set("Origin", test.origin)
-		req.Header.Set("X-Stacklane-CSRF", test.token)
+		req.Header.Set("X-Dockspire-CSRF", test.token)
 		req.Header.Set("Content-Type", test.content)
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, req)
