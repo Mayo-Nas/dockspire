@@ -1,33 +1,60 @@
 # Install Dockspire on a Linux VM
 
-v0.1.2 defaults to HTTP on 8787 with tokenless first-administrator setup. It needs Docker Engine and the modern Compose plugin, not host Go/Node. Only Linux amd64 is supported. Existing v0.1.0 installations keep their HTTPS 9443 configuration and data unchanged; read [upgrade and rollback](#upgrade-and-rollback) before changing an existing installation.
+Dockspire v0.2.0 runs as one container with a persistent data volume. Install Docker Engine on a Linux amd64 server; Dockspire bundles its own Compose executable. Host Go, Node and a host Compose plugin are unnecessary for `docker run`. The Compose alternative below requires the host Compose plugin.
 
-Current main includes unreleased public-readiness fixes and a newer configuration/archive format; build current source below to try them. The versioned v0.1.2 instructions remain historical and do not install those changes. First public release tags must come from licensed main; no new public image is implied by this guide.
+These fresh-install commands use HTTP on 8787 and browser administrator setup. Existing installations must follow [upgrade and rollback](#upgrade-and-rollback), retaining their configuration and data. v0.2.0 writes newer configuration identities and version-2 library archives; take a private whole-data backup before upgrading.
 
-## Install v0.1.2
+## Install with Docker
 
-Use these commands once the [v0.1.2 release notes](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.1.2) record the verified private image and immutable digest. Preparing source or a tag does not publish the image. v0.1.2 refreshes branding and uses Go 1.27.3 for the application and bundled Compose; installation, access and saved-data formats are unchanged from v0.1.1.
+Use the published image listed in the [v0.2.0 release notes](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.2.0), which record its immutable digest, validation and access requirements. A version tag or source checkout alone does not publish an image.
 
-Use a fresh Linux amd64 host without an existing Dockspire installation or `dockspire_data` volume. The matching template fixes project `dockspire` and volume `dockspire_data`; another checkout does not isolate an existing installation. HTTP exposes passwords and sessions without encryption, and any reachable client can claim first administrator while setup is open. Restrict access to a trusted management network.
+Use a fresh Linux amd64 host without an existing Dockspire installation, `dockspire` container or `dockspire_data` volume. Do not run two managers against the same data. HTTP exposes passwords and sessions without encryption, and any reachable client can claim first administrator while setup is open. Restrict access to a trusted management network. The Docker socket grants control of the host; mounting it `:ro` does not make the Docker API read-only.
 
-The historical v0.1.2 release notes describe private distribution. Source repository and package visibility are independent; authenticate GitHub CLI when source access requires it. If the package remains private, registry pulls require package access and a token with `read:packages`; run `docker login ghcr.io --username YOUR_GITHUB_USER` and enter that token at its password prompt. Keep tokens out of commands, Compose files and chat. See [GitHub registry authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
+Repository and package visibility are independent. A public package permits anonymous pulls. If the release requires private package access, run `docker login ghcr.io --username YOUR_GITHUB_USER` and enter a token with `read:packages` at its password prompt. Keep tokens out of commands, Compose files and chat. See [GitHub registry authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 
 ```sh
-gh repo clone Mayo-Nas/dockspire -- --branch v0.1.2
-cd dockspire/deploy
-export DOCKSPIRE_IMAGE=ghcr.io/mayo-nas/dockspire:v0.1.2
+docker volume create dockspire_data
+docker run -d \
+  --name dockspire \
+  --restart unless-stopped \
+  -p 8787:8787 \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  -v dockspire_data:/appdata \
+  --read-only \
+  --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+  --cap-drop ALL \
+  --security-opt no-new-privileges:true \
+  --memory 256m --cpus 0.5 --pids-limit 64 \
+  ghcr.io/mayo-nas/dockspire:v0.2.0
+```
+
+Open `http://SERVER-IP:8787` and continue with [administrator setup](#create-the-administrator). Check startup with `docker logs dockspire` and `docker exec dockspire /stacklane --healthcheck`. If setup expires, run `docker restart dockspire`. The data survives container replacement in `dockspire_data`; never remove that volume to upgrade or reset access.
+
+To pin an immutable image, replace the versioned image above with the complete `ghcr.io/mayo-nas/dockspire@sha256:...` reference from the release notes. To publish only on loopback, replace `-p 8787:8787` with `-p 127.0.0.1:8787:8787`. For DNS access, append `--allow-http --setup --data-dir /appdata --external-url http://docker.example.test:8787` after the image name, using your exact origin. App arguments go after the image and replace its default command.
+
+## Install with Docker Compose
+
+Choose this alternative on a fresh host when you want a saved configuration file, automatic healthchecks, optional HTTPS or Portainer source-copy access. Do not run it alongside a `docker run` installation using the same data volume.
+
+Create a new installation directory and download the version-matched template:
+
+```sh
+mkdir dockspire
+cd dockspire
+curl --fail --location --output compose.yaml https://raw.githubusercontent.com/Mayo-Nas/dockspire/v0.2.0/deploy/compose.yaml
+export DOCKSPIRE_IMAGE=ghcr.io/mayo-nas/dockspire:v0.2.0
 docker compose pull app
 docker compose up -d --no-deps app
 ```
 
-Keep Compose commands in `deploy/`. Repeat the image export after reconnecting, or manually save `DOCKSPIRE_IMAGE=ghcr.io/mayo-nas/dockspire:v0.1.2` in a private `.env` beside `compose.yaml`; a shell export takes precedence. The [release notes](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.1.2) record the immutable digest, validation and limitations. To pin it, select the complete `ghcr.io/mayo-nas/dockspire@sha256:...` reference from those notes instead of the version tag. Do not overwrite an existing deployment's files or data. Continue with [administrator setup](#create-the-administrator) and optional HTTPS below. Publishing an image does not upgrade a running installation.
+Keep Compose commands in this directory. Repeat the image export after reconnecting, or save `DOCKSPIRE_IMAGE=ghcr.io/mayo-nas/dockspire:v0.2.0` in a private `.env` beside `compose.yaml`; a shell export takes precedence. The template fixes project `dockspire` and volume `dockspire_data`; another directory does not isolate an existing installation. Continue with [administrator setup](#create-the-administrator). The sections for HTTPS and Portainer source access below use this Compose installation.
 
 ## Build and start the current source
 
 Use a fresh host without an existing Dockspire installation or `dockspire_data` volume. The template has fixed project `dockspire` and volume `dockspire_data`; a second checkout does not isolate an existing installation. HTTP exposes passwords/sessions without encryption; restrict access to your trusted management network. Any reachable client can claim first administrator while setup is open.
 
 ```sh
-gh repo clone Mayo-Nas/dockspire
+git clone --branch main https://github.com/Mayo-Nas/dockspire.git
 cd dockspire
 docker build -t dockspire:local .
 cd deploy
@@ -35,7 +62,7 @@ export DOCKSPIRE_IMAGE=dockspire:local
 docker compose up -d --pull never
 ```
 
-When the repository is public, anonymous `git clone --branch main https://github.com/Mayo-Nas/dockspire.git` can replace the `gh repo clone` command above. Private source requires authenticated source access; private packages require separate registry access. Already cloned? Start at `docker build` from the repository root. Docker downloads its build toolchain/dependencies. Keep subsequent Compose commands in `deploy/`; after reconnecting, return there and export `DOCKSPIRE_IMAGE=dockspire:local` again. Default Compose discovery loads `compose.override.yaml` beside `compose.yaml`.
+Already cloned? Start at `docker build` from the repository root. Private source requires authenticated source access; private packages require separate registry access. Docker downloads its build toolchain/dependencies. Keep subsequent Compose commands in `deploy/`; after reconnecting, return there and export `DOCKSPIRE_IMAGE=dockspire:local` again. Default Compose discovery loads `compose.override.yaml` beside `compose.yaml`.
 
 Alternatively, manually select a matching built image in `.env` beside `compose.yaml`; preserve existing settings:
 
@@ -53,13 +80,15 @@ DOCKSPIRE_IMAGE=dockspire:local
 
 ## Create the administrator
 
-Open `http://VM-IP:8787`. Username is fixed to `admin`; enter and confirm any password, with no password length or composition policy. Explicitly leaving both fields blank selects passwordless access, opens the dashboard immediately and persists across visits/restarts without a sign-in page. Anyone who can reach a passwordless instance can control its Docker host; restrict network access accordingly. Existing password accounts are not converted. No setup token, certificate or fingerprint is requested. Setup is open for five minutes after startup; `docker compose restart app` opens a new window if it expires. All attempts are rate-limited per transport peer (NAT/proxy clients share an allowance); wait a minute after throttling or restart. Setup cannot replace an existing administrator, and missing/invalid stored access modes never imply passwordless access.
+Open `http://SERVER-IP:8787`. Username is fixed to `admin`; enter and confirm any password, with no password length or composition policy. Explicitly leaving both fields blank selects passwordless access, opens the dashboard immediately and persists across visits/restarts without a sign-in page. Anyone who can reach a passwordless instance can control its Docker host; restrict network access accordingly. Existing password accounts are not converted. No setup token, certificate or fingerprint is requested. Setup is open for five minutes after startup; `docker restart dockspire` opens a new window if it expires (`docker compose restart app` for Compose installations). All attempts are rate-limited per transport peer (NAT/proxy clients share an allowance); wait a minute after throttling or restart. Setup cannot replace an existing administrator, and missing/invalid stored access modes never imply passwordless access.
 
 Authentication JSON requests have a generic 1 MiB body limit, including field names, JSON escaping and both setup fields. This transport ceiling applies even though passwords have no separate minimum, maximum or character policy. Use matching strings; omitted or null fields cannot enable passwordless mode.
 
 The password hash and library persist in `dockspire_data` at `/appdata`; sessions end on restart. Back up the stopped app's data privately and workload data separately. Library exports exclude administrator credentials and TLS keys. Never run `docker compose down -v` unless intending to erase this installation. Offline password recovery remains in [operations](OPERATIONS.md#administrator-access); do not delete `admin.json` or create an empty volume to reset a password.
 
 ## Optional HTTPS
+
+This section uses the Compose installation. For an existing `docker run` installation, retain its current settings and use a deliberate migration; do not start another manager against the same volume.
 
 Native `--https` still defaults to 9443; the container can serve TLS on its existing 8787 mapping. Set `DOCKSPIRE_TLS_HOSTS` to your DNS/IP before first TLS startup and save `compose.override.yaml` beside `compose.yaml`:
 
@@ -128,6 +157,16 @@ After signing in, choose **Stacks → Import stack → Portainer**. Select a dis
 Only the supported Compose and explicitly authorized environment files are copied. Portainer database files, separate key files, arbitrary attachments and workload data are excluded. The copied Compose text and environment files can contain workload credentials or keys. Keep the library and exported archives private. Removing the override and restarting `app` with the base file disables further Portainer reads; previously saved copies remain in the library. Pending takeover recovery still needs the same authorized source bundle to verify its fingerprint; keep that read-only source available until the handoff finishes.
 
 ## Upgrade and rollback
+
+Use the method that created your installation. Keep its existing volume, container/project identity, port bindings, app arguments, mounts and resource/security settings. Read the target release notes and record the old image ID/digest before changing it. Back up the stopped application's whole data volume privately, including administrator/TLS state, with original numeric ownership and permissions; library exports are not a whole-data backup. Keep workload backups separately. Retain the old image locally.
+
+### Docker run installations
+
+For the quick-install container named `dockspire`, record the running image with `docker inspect --format '{{.Image}}' dockspire`. Pull the target release first, then stop the manager with `docker stop dockspire` and take the private whole-volume backup. After verifying that backup, remove only the stopped manager container with `docker rm dockspire` (without `-v`). Re-run your saved `docker run` command with the target image, the same `dockspire_data:/appdata` mount and every existing customization. The fresh-install command above is suitable only if it still matches your installation. Do not run `docker volume create` against a differently named volume or switch to Compose as an implicit upgrade. Sign in again and check inventory, saved stacks and installation status. Managed workloads do not need restarting.
+
+v0.2.0 retains legacy bundle IDs but writes new presence-aware identities and version-2 library archives. After a new-format write, image-only rollback to an older release is insufficient. Stop Dockspire, preserve the upgraded volume separately, and restore your compatible pre-upgrade whole-volume backup into a fresh isolated volume/path with the retained old image. Preserve administrator/TLS state, original numeric ownership and private permissions, and verify recovery before resuming operations. Never run old and new managers against the same data. Workload data needs a separate restore plan.
+
+### Compose installations
 
 When selecting an image in a private `.env`, first run `unset DOCKSPIRE_IMAGE` in that shell so a stale export cannot override it. Alternatively, export the exact selected version or digest for every upgrade and rollback command. Record the effective reference before pulling or recreating `app`.
 
