@@ -1,16 +1,110 @@
 # Install Dockspire on a Linux VM
 
-Dockspire v0.2.0 runs as one container with a persistent data volume. Install Docker Engine on a Linux amd64 server; Dockspire bundles its own Compose executable. Host Go, Node and a host Compose plugin are unnecessary for `docker run`. The Compose alternative below requires the host Compose plugin.
+Dockspire v0.2.0 runs as one container with a persistent data volume. Choose one installation method:
+
+| Method | Use it when | Host requirements |
+| --- | --- | --- |
+| [Docker Compose (recommended)](#install-with-docker-compose) | You want a saved configuration file and automatic healthchecks. | Docker Engine and the Docker Compose plugin |
+| [Docker run](#install-with-docker) | You prefer a single container command. | Docker Engine |
+
+Both methods require a Linux amd64 server and permission to run Docker commands. Check Docker with `docker version`; for Compose, also check `docker compose version`. Dockspire bundles its own Compose executable for managing stacks; host Go and Node are unnecessary.
 
 These fresh-install commands use HTTP on 8787 and browser administrator setup. Existing installations must follow [upgrade and rollback](#upgrade-and-rollback), retaining their configuration and data. v0.2.0 writes newer configuration identities and version-2 library archives; take a private whole-data backup before upgrading.
 
-## Install with Docker
-
-Use the published image listed in the [v0.2.0 release notes](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.2.0), which record its immutable digest, validation and access requirements. A version tag or source checkout alone does not publish an image.
+The public v0.2.0 image can be pulled without a registry login. The [release notes](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.2.0) record its immutable digest and validation. Both methods below select that version deliberately.
 
 Use a fresh Linux amd64 host without an existing Dockspire installation, `dockspire` container or `dockspire_data` volume. Do not run two managers against the same data. HTTP exposes passwords and sessions without encryption, and any reachable client can claim first administrator while setup is open. Restrict access to a trusted management network. The Docker socket grants control of the host; mounting it `:ro` does not make the Docker API read-only.
 
-Repository and package visibility are independent. A public package permits anonymous pulls. If the release requires private package access, run `docker login ghcr.io --username YOUR_GITHUB_USER` and enter a token with `read:packages` at its password prompt. Keep tokens out of commands, Compose files and chat. See [GitHub registry authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
+## Install with Docker Compose
+
+Compose keeps your installation settings in `compose.yaml` and the selected image in `.env`. It creates the data volume automatically. Use this method for optional HTTPS or Portainer source-copy access described later in this guide.
+
+### 1. Create an installation directory
+
+Run these commands on your Docker host. Stop if directory creation fails; choose a new, empty directory instead of replacing an existing installation's files.
+
+```sh
+mkdir dockspire && cd dockspire
+```
+
+### 2. Download or create the Compose file
+
+Download the version-matched template:
+
+```sh
+curl --fail --location --output compose.yaml https://raw.githubusercontent.com/Mayo-Nas/dockspire/v0.2.0/deploy/compose.yaml
+```
+
+Alternatively, create `compose.yaml` in the installation directory and paste the complete configuration below. It matches the [release template](https://github.com/Mayo-Nas/dockspire/blob/v0.2.0/deploy/compose.yaml):
+
+```yaml
+name: dockspire
+services:
+  app:
+    image: ${DOCKSPIRE_IMAGE:?Set DOCKSPIRE_IMAGE to a published version or image digest}
+    command: ["--allow-http", "--setup", "--data-dir", "/appdata", "--external-url", "${DOCKSPIRE_EXTERNAL_URL:-}"]
+    restart: unless-stopped
+    ports:
+      - "${DOCKSPIRE_BIND_ADDRESS:-0.0.0.0}:${DOCKSPIRE_HTTP_PORT:-8787}:8787"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - dockspire_data:/appdata
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "/stacklane", "--healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+volumes:
+  dockspire_data:
+    name: dockspire_data
+```
+
+### 3. Select the image and optional settings
+
+Create `.env` beside `compose.yaml` with the following contents. This saves the image selection across shell sessions:
+
+```dotenv
+DOCKSPIRE_IMAGE=ghcr.io/mayo-nas/dockspire:v0.2.0
+# Optional HTTP port when 8787 is occupied:
+# DOCKSPIRE_HTTP_PORT=8788
+# Optional exact origin for a DNS name:
+# DOCKSPIRE_EXTERNAL_URL=http://docker.example.test:8787
+# Optional loopback-only publication:
+# DOCKSPIRE_BIND_ADDRESS=127.0.0.1
+```
+
+For an immutable image, replace the `DOCKSPIRE_IMAGE` value with the complete `ghcr.io/mayo-nas/dockspire@sha256:...` reference from the release notes. The HTTP template accepts IP addresses and localhost by default. DNS access requires an exact `http://...` external URL; forwarded headers are ignored. With `DOCKSPIRE_HTTP_PORT=8788`, open `http://SERVER-IP:8788` and include that port in any external URL. Loopback-only publication allows access from the server or a verified SSH tunnel.
+
+### 4. Start and verify Dockspire
+
+Run from the installation directory. Unset an old shell image export so the saved `.env` value is used:
+
+```sh
+unset DOCKSPIRE_IMAGE
+docker compose config --quiet
+docker compose pull app
+docker compose up -d --no-deps app
+docker compose ps
+docker compose logs --tail 50 app
+docker compose exec -T app /stacklane --healthcheck
+```
+
+Stop and correct any validation or pull error before starting. `docker compose ps` should show `app` running; its automatic healthcheck may take a short time to report healthy. Open `http://SERVER-IP:8787` and continue with [administrator setup](#create-the-administrator).
+
+Keep `compose.yaml` and `.env`, and run subsequent Compose commands from their directory. Shell exports override matching `.env` values. The template fixes project `dockspire`, service `app` and volume `dockspire_data`; another directory does not isolate an existing installation. Dockspire's saved data persists in that volume at `/appdata`. Never use `docker compose down -v` to upgrade or reset access.
+
+## Install with Docker
+
+Use `docker run` if you do not want to manage a Compose file. Create the persistent data volume, then start Dockspire:
 
 ```sh
 docker volume create dockspire_data
@@ -28,26 +122,17 @@ docker run -d \
   ghcr.io/mayo-nas/dockspire:v0.2.0
 ```
 
-Open `http://SERVER-IP:8787` and continue with [administrator setup](#create-the-administrator). Check startup with `docker logs dockspire` and `docker exec dockspire /stacklane --healthcheck`. If setup expires, run `docker restart dockspire`. The data survives container replacement in `dockspire_data`; never remove that volume to upgrade or reset access.
-
-To pin an immutable image, replace the versioned image above with the complete `ghcr.io/mayo-nas/dockspire@sha256:...` reference from the release notes. To publish only on loopback, replace `-p 8787:8787` with `-p 127.0.0.1:8787:8787`. For DNS access, append `--allow-http --setup --data-dir /appdata --external-url http://docker.example.test:8787` after the image name, using your exact origin. App arguments go after the image and replace its default command.
-
-## Install with Docker Compose
-
-Choose this alternative on a fresh host when you want a saved configuration file, automatic healthchecks, optional HTTPS or Portainer source-copy access. Do not run it alongside a `docker run` installation using the same data volume.
-
-Create a new installation directory and download the version-matched template:
+Check that the container is running and healthy:
 
 ```sh
-mkdir dockspire
-cd dockspire
-curl --fail --location --output compose.yaml https://raw.githubusercontent.com/Mayo-Nas/dockspire/v0.2.0/deploy/compose.yaml
-export DOCKSPIRE_IMAGE=ghcr.io/mayo-nas/dockspire:v0.2.0
-docker compose pull app
-docker compose up -d --no-deps app
+docker ps --filter name=^/dockspire$
+docker logs --tail 50 dockspire
+docker exec dockspire /stacklane --healthcheck
 ```
 
-Keep Compose commands in this directory. Repeat the image export after reconnecting, or save `DOCKSPIRE_IMAGE=ghcr.io/mayo-nas/dockspire:v0.2.0` in a private `.env` beside `compose.yaml`; a shell export takes precedence. The template fixes project `dockspire` and volume `dockspire_data`; another directory does not isolate an existing installation. Continue with [administrator setup](#create-the-administrator). The sections for HTTPS and Portainer source access below use this Compose installation.
+Open `http://SERVER-IP:8787` and continue with [administrator setup](#create-the-administrator). If setup expires, run `docker restart dockspire`. Save your complete `docker run` command for future upgrades. The data survives container replacement in `dockspire_data`; never remove that volume to upgrade or reset access.
+
+To pin an immutable image, replace the versioned image above with the complete `ghcr.io/mayo-nas/dockspire@sha256:...` reference from the release notes. To publish only on loopback, replace `-p 8787:8787` with `-p 127.0.0.1:8787:8787`. For DNS access, append `--allow-http --setup --data-dir /appdata --external-url http://docker.example.test:8787` after the image name, using your exact origin. App arguments go after the image and replace its default command.
 
 ## Build and start the current source
 

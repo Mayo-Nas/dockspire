@@ -57,7 +57,7 @@ bash scripts/check-image-security.sh dockspire:local
 
 The image builds the application and patched upstream Compose with digest-pinned Go builders. [The separate Compose manifest](../deploy/compose-runtime/README.md) records its dependency override and build procedure. The build context explicitly allows runtime source/assets, license notices and the two Compose manifests; update the allowlist and regression when adding required input types. `test-build-context.sh` exports a disposable scratch fixture through BuildKit and verifies required files survive while fictional private/test/configuration files stay excluded. It never copies private source files. The container test invokes it before creating its own container/volume on a random loopback port, then checks real Docker/Compose, default HTTP and optional HTTPS, tokenless setup, cookie policy, login, TLS fingerprint and restart persistence. It never deploys a stack. Check host disk capacity before building; use a dedicated development host.
 
-The quick installation uses `docker run`; `deploy/compose.yaml` is the saved-configuration alternative with an automatic exec-form healthcheck. To start a fresh installation from the local image on a Linux development host using Compose:
+The installation guide offers Docker Compose and `docker run`; `deploy/compose.yaml` provides the saved configuration and automatic exec-form healthcheck. To start a fresh installation from the local image on a Linux development host using Compose:
 
 ```sh
 DOCKSPIRE_IMAGE=dockspire:local docker compose -f deploy/compose.yaml up -d --pull never

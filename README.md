@@ -12,9 +12,42 @@ See [security reporting and homelab scope](SECURITY.md) and the [v0.2.0 release 
 
 ## Install on a Linux VM
 
-Install Docker Engine on a Linux amd64 server. Dockspire bundles Compose; host Go, Node and a host Compose plugin are unnecessary for this method. Use the published v0.2.0 image below after checking its [release notes](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.2.0).
+Choose [Docker Compose](#docker-compose-recommended) for a saved configuration file, or [Docker run](#docker-run) for a single command. Both use the public v0.2.0 image without a registry login. See its [release notes](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.2.0) for validation and the immutable image digest.
 
-On a fresh Linux amd64 host without an existing Dockspire installation or `dockspire_data` volume:
+You need Docker Engine on a Linux amd64 server and permission to run Docker commands. Compose installation also needs the host Docker Compose plugin (`docker compose version`); `docker run` does not. Dockspire bundles Compose for managing your stacks, so host Go and Node are unnecessary.
+
+Use only one method on a fresh host without an existing Dockspire installation or `dockspire_data` volume. Existing installations must follow [upgrade and rollback](docs/INSTALL.md#upgrade-and-rollback).
+
+### Docker Compose (recommended)
+
+Create a new installation directory and download the version-matched Compose file. Stop if directory creation fails; use a new, empty directory.
+
+```sh
+mkdir dockspire && cd dockspire
+curl --fail --location --output compose.yaml https://raw.githubusercontent.com/Mayo-Nas/dockspire/v0.2.0/deploy/compose.yaml
+```
+
+Create `.env` beside `compose.yaml` with:
+
+```dotenv
+DOCKSPIRE_IMAGE=ghcr.io/mayo-nas/dockspire:v0.2.0
+```
+
+Then validate and start Dockspire from that directory:
+
+```sh
+unset DOCKSPIRE_IMAGE
+docker compose config --quiet
+docker compose pull app
+docker compose up -d --no-deps app
+docker compose ps
+```
+
+Compose creates the persistent `dockspire_data` volume automatically. Check startup with `docker compose logs app` and `docker compose exec -T app /stacklane --healthcheck`. For the complete copy-and-paste YAML and configuration options, see [Docker Compose installation](docs/INSTALL.md#install-with-docker-compose).
+
+### Docker run
+
+Create the persistent volume and start the container:
 
 ```sh
 docker volume create dockspire_data
@@ -32,11 +65,15 @@ docker run -d \
   ghcr.io/mayo-nas/dockspire:v0.2.0
 ```
 
-Open `http://SERVER-IP:8787` and create the `admin` password within five minutes. If setup expires, run `docker restart dockspire`. Check startup with `docker logs dockspire` and `docker exec dockspire /stacklane --healthcheck`. Existing installations must follow [upgrade and rollback](docs/INSTALL.md#upgrade-and-rollback); do not start a second manager against their data volume.
+Check startup with `docker ps --filter name=^/dockspire$`, `docker logs dockspire` and `docker exec dockspire /stacklane --healthcheck`. See [Docker run installation](docs/INSTALL.md#install-with-docker) for configuration options.
+
+### Open Dockspire
+
+Open `http://SERVER-IP:8787` and create the `admin` password within five minutes. Replace `SERVER-IP` with your server's IP address, or use `localhost` when browsing on the server. If setup expires, run `docker compose restart app` from the installation directory, or `docker restart dockspire` for Docker run. See [administrator setup](docs/INSTALL.md#create-the-administrator).
 
 HTTP carries passwords and sessions without encryption. Use a trusted management network: any reachable client can claim first administrator during the setup window. Choose any password, or explicitly leave both fields blank for persistent passwordless access: anyone who can reach Dockspire can then control this Docker host without signing in. Optional HTTPS and a pinned DNS origin remain available in the installation guide. No certificate fingerprint or log token is needed for HTTP setup.
 
-The Docker socket grants Dockspire control of the host, including when mounted `:ro`. Prefer a saved configuration file? Use the [Docker Compose installation](docs/INSTALL.md#install-with-docker-compose). For immutable image references, DNS access, optional HTTPS, persistence and older installations, see [installation and upgrades](docs/INSTALL.md). Publishing a release does not update running deployments.
+The Docker socket grants Dockspire control of the host, including when mounted `:ro`. Both methods store Dockspire's data in `dockspire_data` at `/appdata`; do not start a second manager against that volume. For immutable image references, DNS access, optional HTTPS, persistence and older installations, see [installation and upgrades](docs/INSTALL.md). Publishing a release does not update running deployments.
 
 Docker packages remain managed by the host. Dockspire does not install or upgrade them automatically.
 
