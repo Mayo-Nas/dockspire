@@ -4,6 +4,7 @@ set -euo pipefail
 trap 'printf "Container installation check failed at line %s\n" "$LINENO" >&2' ERR
 image=${1:?Usage: bash tests/test-container.sh IMAGE}
 expected_version=${2:-dev}
+bash "$(dirname "$0")/test-build-context.sh"
 curl() { command curl --connect-timeout 3 --max-time 25 "$@"; }
 created_volume=false
 created_container=false

@@ -48,13 +48,14 @@ The helper uses empty project-local npm configs, the committed lockfile, a depen
 The topbar shows the embedded build version. Unversioned source builds use `dev`; release publication passes its validated tag through Docker's `VERSION` build argument into the Go binary. For a labeled development build, use `docker build --build-arg VERSION=v0.1.2-dev -t dockspire:local .` and `bash tests/test-container.sh dockspire:local v0.1.2-dev`. A development label is not a published release.
 
 ```sh
+bash tests/test-build-context.sh
 docker build -t dockspire:local .
 bash tests/test-container.sh dockspire:local
 go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
 bash scripts/check-image-security.sh dockspire:local
 ```
 
-The image builds the application and patched upstream Compose with digest-pinned Go builders. [The separate Compose manifest](../deploy/compose-runtime/README.md) records its dependency override and build procedure. The container tests create/remove their own container/volume on a random loopback port, checking real Docker/Compose, default HTTP and optional HTTPS, tokenless setup, cookie policy, login, TLS fingerprint and restart persistence. They never deploy a stack. Check host disk capacity before building; use a dedicated development host.
+The image builds the application and patched upstream Compose with digest-pinned Go builders. [The separate Compose manifest](../deploy/compose-runtime/README.md) records its dependency override and build procedure. The build context explicitly allows runtime source/assets, license notices and the two Compose manifests; update the allowlist and regression when adding required input types. `test-build-context.sh` exports a disposable scratch fixture through BuildKit and verifies required files survive while fictional private/test/configuration files stay excluded. It never copies private source files. The container test invokes it before creating its own container/volume on a random loopback port, then checks real Docker/Compose, default HTTP and optional HTTPS, tokenless setup, cookie policy, login, TLS fingerprint and restart persistence. It never deploys a stack. Check host disk capacity before building; use a dedicated development host.
 
 The quick installation uses `docker run`; `deploy/compose.yaml` is the saved-configuration alternative with an automatic exec-form healthcheck. To start a fresh installation from the local image on a Linux development host using Compose:
 
