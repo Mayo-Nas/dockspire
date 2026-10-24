@@ -108,21 +108,15 @@ An existing TLS reverse proxy can use the native HTTP listener with `--listen 0.
 
 ## v0.1.1 compatibility
 
+The v0.1.0 and v0.1.1 GHCR versions have been retired; fresh pulls are unavailable. Their Git tags, source and release history remain available for reference. This compatibility guidance applies only to existing deployments or locally retained images. Use the current versioned instructions for a fresh installation.
+
 Existing v0.1.1 installations use the same HTTP setup, Compose project and persistent volume as v0.1.2. Keep their deployed files, overrides, administrator and data; follow [upgrade and rollback](#upgrade-and-rollback) to select the new image deliberately. The historical [v0.1.1 release](https://github.com/Mayo-Nas/dockspire/releases/tag/v0.1.1) and its tagged files remain available. v0.1.2 adds no storage migration.
 
-## Published v0.1.0 compatibility
+## Locally retained v0.1.0 compatibility
 
-The existing private image `ghcr.io/mayo-nas/dockspire:v0.1.0` uses HTTPS 9443 and the old setup-token flow. It does not recognize `--allow-http`. Use its [tagged Compose file](https://github.com/Mayo-Nas/dockspire/blob/v0.1.0/deploy/compose.yaml) and [matching TLS/setup guide](https://github.com/Mayo-Nas/dockspire/blob/v0.1.0/docs/INSTALL.md), never the current HTTP template. Manually set `DOCKSPIRE_IMAGE=ghcr.io/mayo-nas/dockspire:v0.1.0` in `.env` beside that downloaded file.
+A locally retained v0.1.0 image uses HTTPS 9443 and the old setup-token flow. It does not recognize `--allow-http`. Keep its deployed configuration; its [tagged Compose file](https://github.com/Mayo-Nas/dockspire/blob/v0.1.0/deploy/compose.yaml) and [matching TLS/setup guide](https://github.com/Mayo-Nas/dockspire/blob/v0.1.0/docs/INSTALL.md) are historical references, not instructions for a fresh registry installation. The current HTTP template does not match that image.
 
-On a fresh installation directory, download the matching template with authenticated GitHub CLI (choose a new filename; do not replace an existing deployment):
-
-```sh
-(set -C; gh api 'repos/Mayo-Nas/dockspire/contents/deploy/compose.yaml?ref=v0.1.0' --header 'Accept: application/vnd.github.raw+json' > compose.v0.1.0.yaml)
-```
-
-Use `docker compose -f compose.v0.1.0.yaml` for that installation's commands, with its `.env` in the same directory. Use a fresh shell without the source-image export, so `.env` selects the intended published image.
-
-Private registry downloads require an account granted package access and a token with `read:packages`. Run `docker login ghcr.io --username YOUR_GITHUB_USER` and enter the token at its password prompt, then `docker compose -f compose.v0.1.0.yaml pull` and `docker compose -f compose.v0.1.0.yaml up -d`. Keep tokens out of commands/Compose/chat; [GitHub registry authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry) describes access requirements. Normal source pushes do not publish images. This change does not update any running v0.1.0 instance.
+Before upgrading, record and retain the old local image ID/digest, and preserve the existing Compose files, overrides, project/data volume, administrator and TLS state. Follow [upgrade and rollback](#upgrade-and-rollback) for a private stopped whole-data backup with original numeric ownership and permissions. Recovery requires that compatible backup and a retained old image; the retired registry tag cannot be pulled again. Source pushes do not publish images or update running v0.1.0 instances.
 
 ## Optional Portainer configuration import
 
