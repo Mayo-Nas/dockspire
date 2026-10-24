@@ -117,6 +117,31 @@ checkpoint_metadata() {
   else printf 'Upgrade probe checkpoint: target=%s metadata=unavailable\n' "$target"; fi
  done
 }
+# Report only fixed schema names/counts; raw metadata values stay private.
+history_metadata_difference() {
+ if [[ ${#1} -gt 65536 || ${#2} -gt 65536 ]]; then
+  printf '%s\n' 'Upgrade history comparison: metadata_over_limit=true'
+  return
+ fi
+ jq -nr --argjson expected "$1" --argjson actual "$2" '
+  ($expected.revisions | sort_by(.revision)) as $before |
+  ($actual.revisions | sort_by(.revision)) as $after |
+  (($before | map(.revision)) == ($after | map(.revision))) as $ids |
+  "Upgrade history comparison: count_equal=\(($before|length)==($after|length)) revision_ids_equal=\($ids) order_equal=\(($expected.revisions|map(.revision))==($actual.revisions|map(.revision))) next_cursor_equal=\($expected.nextCursor==$actual.nextCursor) schema_equal=\(($expected|keys)==($actual|keys) and ($before|map(keys))==($after|map(keys)))",
+  (if $ids then
+   ["storedAt","initial","selected","applied","recovery"][] as $field |
+   [range(0; $before|length) | select($before[.][$field] != $after[.][$field])] as $changed |
+   select(($changed|length)>0) |
+   "Upgrade history field: field=\($field) changed=\($changed|length)" +
+   (if $field=="storedAt" then
+    " whole_seconds_equal=\(all($changed[]; . as $i |
+      ($before[$i].storedAt|type)=="string" and ($after[$i].storedAt|type)=="string" and
+      ($before[$i].storedAt|sub("\\.[0-9]+Z$";"Z"))==($after[$i].storedAt|sub("\\.[0-9]+Z$";"Z"))))"
+    else "" end)
+  else empty end)
+ ' 2>/dev/null || printf '%s\n' 'Upgrade history comparison: diagnostic_unavailable=true'
+}
+# End history comparison diagnostic.
 # Preserve the stopped source archive; the host view is never the restore source.
 checkpoint_container_owned() {
  [[ "$container_created" == true ]] || return 1
@@ -269,7 +294,11 @@ for scenario in http https http-passwordless https-passwordless; do
     else
      [[ "$record" == "${baseline_records[$index]}" ]]
     fi
-    [[ $(api "$base/api/stacks/${stack_names[$index]}/revisions" | jq -Sc .) == "${baseline_histories[$index]}" ]]
+    current_history=$(api "$base/api/stacks/${stack_names[$index]}/revisions" | jq -Sc .)
+    if [[ "$current_history" != "${baseline_histories[$index]}" ]]; then
+     history_metadata_difference "${baseline_histories[$index]}" "$current_history"
+    fi
+    [[ "$current_history" == "${baseline_histories[$index]}" ]]
    done
    if [[ "$phase" == rollback ]]; then
     [[ $(curl "${curl_args[@]}" -sS -o /dev/null -w '%{http_code}' -H "Cookie: $cookie" "$base/api/stacks/upgrade-candidate") == 400 ]]
