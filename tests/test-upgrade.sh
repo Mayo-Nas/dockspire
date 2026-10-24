@@ -264,7 +264,7 @@ for scenario in http https http-passwordless https-passwordless; do
  for phase in old candidate rollback candidate-preserved; do
   printf 'Upgrade fixture: scenario=%s phase=%s\n' "$scenario" "$phase"
   running_image=$old_image
-  expected_version=v0.1.1
+  expected_version=v0.2.0
   active_volume=$volume
   if [[ "$phase" == candidate || "$phase" == candidate-preserved ]]; then running_image=$new_image; expected_version=$new_version; fi
   if [[ "$phase" == rollback ]]; then
@@ -328,12 +328,10 @@ for scenario in http https http-passwordless https-passwordless; do
   if [[ "$phase" == candidate || "$phase" == rollback ]]; then
    for index in "${!baseline_records[@]}"; do
     record=$(api "$base/api/stacks/${stack_names[$index]}" | jq -Sc .)
+    # The released baseline already uses presence-aware identity: retain every field.
+    [[ "$record" == "${baseline_records[$index]}" ]]
     if [[ "$phase" == candidate ]]; then
-     # Only the optimistic editor token changes. All stored metadata and IDs remain exact.
-     [[ $(jq -Sc 'del(.fingerprint)' <<< "$record") == "$(jq -Sc 'del(.fingerprint)' <<< "${baseline_records[$index]}")" ]]
      [[ $(jq -r '.fingerprint' <<< "$record") == $(expected_exact_token "${stack_names[$index]}") ]]
-    else
-     [[ "$record" == "${baseline_records[$index]}" ]]
     fi
     expected_history=${baseline_histories[$index]}
     if [[ "$phase" == rollback ]]; then expected_history=${rollback_histories[$index]}; fi
@@ -391,5 +389,5 @@ for scenario in http https http-passwordless https-passwordless; do
   remove_container
  done
  cleanup_resources
- echo "Upgrade/backup-restore rollback $scenario: legacy metadata/history, modern writes, auth/TLS and preserved candidate data passed"
+ echo "Upgrade/backup-restore rollback $scenario: saved metadata/history, new writes, auth/TLS and preserved candidate data passed"
 done

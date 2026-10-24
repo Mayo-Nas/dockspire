@@ -25,10 +25,12 @@ if [[ $# == 1 && "$1" == --check-trust ]]; then exit 0; fi
 : "${RUNNER_TEMP:?Hosted temporary directory required}"
 expected_visibility=${DOCKSPIRE_BASELINE_PACKAGE_VISIBILITY:-private}
 [[ "$expected_visibility" == private || "$expected_visibility" == public ]]
-previous_digest=sha256:4fd7ba7c829c48087d6f76883d7c553c33a4e46737d44583580d5716b2b4303c
+previous_version=v0.2.0
+previous_digest=sha256:265b222a8993679dc6920e5e06b7184b57159571f68a6cd1de66047e05c0f639
+previous_revision=16fe9995ed5f7b7896dec78cf8de90c314ab9147
 package=users/Mayo-Nas/packages/container/dockspire
 gh api "$package" | jq -e --arg visibility "$expected_visibility" '.visibility == $visibility and .package_type == "container" and .name == "dockspire" and (.repository == null or .repository.full_name == "Mayo-Nas/dockspire")' >/dev/null
-gh api --paginate --slurp "$package/versions?per_page=100" | jq -e --arg digest "$previous_digest" '[.[][] | select(.metadata.container.tags | index("v0.1.1")) | .name] == [$digest]' >/dev/null
+gh api --paginate --slurp "$package/versions?per_page=100" | jq -e --arg version "$previous_version" --arg digest "$previous_digest" '[.[][] | select(.metadata.container.tags | index($version)) | .name] == [$digest]' >/dev/null
 registry_config=$(mktemp -d "$RUNNER_TEMP/dockspire-upgrade-registry.XXXXXX")
 export DOCKER_CONFIG="$registry_config"
 cleanup() {
@@ -40,3 +42,4 @@ trap cleanup EXIT
 printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin >/dev/null
 docker pull --platform linux/amd64 "ghcr.io/mayo-nas/dockspire@$previous_digest"
 docker image inspect --format '{{json .RepoDigests}}' "ghcr.io/mayo-nas/dockspire@$previous_digest" | jq -e --arg reference "ghcr.io/mayo-nas/dockspire@$previous_digest" 'index($reference) != null' >/dev/null
+docker image inspect --format '{"os":{{json .Os}},"arch":{{json .Architecture}},"source":{{json (index .Config.Labels "org.opencontainers.image.source")}},"version":{{json (index .Config.Labels "org.opencontainers.image.version")}},"revision":{{json (index .Config.Labels "org.opencontainers.image.revision")}}}' "ghcr.io/mayo-nas/dockspire@$previous_digest" | jq -e --arg version "$previous_version" --arg revision "$previous_revision" '.os == "linux" and .arch == "amd64" and .source == "https://github.com/Mayo-Nas/dockspire" and .version == $version and .revision == $revision' >/dev/null

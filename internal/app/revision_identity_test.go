@@ -9,6 +9,26 @@ import (
 	"time"
 )
 
+func TestLegacyFingerprintHistoricalVectors(t *testing.T) {
+	// Fixed v0.1.1 contract: SHA-256(compose + NUL.env NUL + env + NULstack.env NUL + stackEnv).
+	const compose = "services:\n  web:\n    image: example.test/app:1\n"
+	for _, tc := range []struct {
+		name  string
+		files map[string]string
+		want  string
+	}{
+		{"absent", map[string]string{"compose.yaml": compose}, "88fb8a4bf24daca8d3b7370d8b5d52ef324ec7c5b0560d4a7553526451713ebd"},
+		{"present-empty", map[string]string{"compose.yaml": compose, ".env": "", "stack.env": ""}, "88fb8a4bf24daca8d3b7370d8b5d52ef324ec7c5b0560d4a7553526451713ebd"},
+		{"populated", map[string]string{"compose.yaml": compose, ".env": "MODE=fixture\n", "stack.env": "COLOR=blue\n"}, "cb3c134a02a181ccd62e9d0fbf15847ae2eb8baa75189f35fde7182981f56301"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := legacyFilesFingerprint(tc.files); got != tc.want {
+				t.Fatalf("historical fingerprint = %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestFingerprintDistinguishesPresenceAndRejectsStaleReview(t *testing.T) {
 	a := map[string]string{"compose.yaml": testCompose}
 	b := map[string]string{"compose.yaml": testCompose, ".env": ""}

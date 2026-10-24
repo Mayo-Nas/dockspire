@@ -124,7 +124,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          previous=$(docker image inspect --format '{{.Id}}' ghcr.io/mayo-nas/dockspire@sha256:4fd7ba7c829c48087d6f76883d7c553c33a4e46737d44583580d5716b2b4303c)
+          previous=$(docker image inspect --format '{{.Id}}' ghcr.io/mayo-nas/dockspire@sha256:265b222a8993679dc6920e5e06b7184b57159571f68a6cd1de66047e05c0f639)
           candidate=$(docker image inspect --format '{{.Id}}' "ghcr.io/${GITHUB_REPOSITORY,,}:$RELEASE_VERSION")
           bash tests/test-upgrade.sh "$previous" "$candidate" "$RELEASE_VERSION"
 
