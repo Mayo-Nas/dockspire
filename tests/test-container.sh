@@ -4,6 +4,14 @@ set -euo pipefail
 trap 'printf "Container installation check failed at line %s\n" "$LINENO" >&2' ERR
 image=${1:?Usage: bash tests/test-container.sh IMAGE}
 expected_version=${2:-dev}
+compose_file="$(cd -- "$(dirname "$0")/../deploy" && pwd)/compose.yaml"
+(
+  unset DOCKSPIRE_IMAGE DOCKSPIRE_EXTERNAL_URL DOCKSPIRE_BIND_ADDRESS DOCKSPIRE_HTTP_PORT
+  [[ $(docker compose --env-file /dev/null -f "$compose_file" config --images) == ghcr.io/mayo-nas/dockspire:v0.2.0 ]]
+  [[ $(DOCKSPIRE_IMAGE= docker compose --env-file /dev/null -f "$compose_file" config --images) == ghcr.io/mayo-nas/dockspire:v0.2.0 ]]
+  [[ $(DOCKSPIRE_IMAGE="$image" docker compose --env-file /dev/null -f "$compose_file" config --images) == "$image" ]]
+)
+printf '%s\n' 'Compose template image selection: default, empty and explicit override passed'
 bash "$(dirname "$0")/test-build-context.sh"
 curl() { command curl --connect-timeout 3 --max-time 25 "$@"; }
 created_volume=false

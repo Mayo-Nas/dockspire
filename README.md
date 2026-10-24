@@ -1,10 +1,8 @@
 # Dockspire
 
-<a href="web/brand/dockspire-horizontal-dark.png"><img src="web/brand/dockspire-horizontal-dark.png" alt="Dockspire — Dock. Deploy. Manage." width="800"></a>
+<img src="web/brand/dockspire-horizontal-dark.png" alt="Dockspire — Dock. Deploy. Manage." width="800">
 
-[Final branding assets and usage](docs/BRANDING.md) · [Transparent mark](web/brand/dockspire-icon-256.png) · [Horizontal logo for light surfaces](web/brand/dockspire-horizontal-dark.png)
-
-Docker and Compose management for self-hosted Linux servers. Dockspire provides live inventory, container diagnostics, a saved Compose stack library, reviewed deployments and updates, configuration history, and portable backups.
+Docker management for self-hosted Linux servers. Dockspire provides live inventory, container diagnostics, a saved Compose stack library, reviewed deployments and updates, configuration history, and portable backups.
 
 It runs as one small application container with an embedded browser interface and one persistent data directory.
 
@@ -20,37 +18,70 @@ Use only one method on a fresh host without an existing Dockspire installation o
 
 ### Docker Compose (recommended)
 
-Create a new installation directory and download the version-matched Compose file. Stop if directory creation fails; use a new, empty directory.
+To install using Docker Compose, download the Compose file into a new, empty installation directory:
 
 ```sh
-mkdir dockspire && cd dockspire
-curl --fail --location --output compose.yaml https://raw.githubusercontent.com/Mayo-Nas/dockspire/v0.2.0/deploy/compose.yaml
+curl --fail -L https://raw.githubusercontent.com/Mayo-Nas/dockspire/main/deploy/compose.yaml -o dockspire-compose.yaml
 ```
 
-Create `.env` beside `compose.yaml` with:
+Alternatively, create a `dockspire-compose.yaml` file with the following contents:
 
-```dotenv
-DOCKSPIRE_IMAGE=ghcr.io/mayo-nas/dockspire:v0.2.0
+```yaml
+name: dockspire
+services:
+  app:
+    image: ${DOCKSPIRE_IMAGE:-ghcr.io/mayo-nas/dockspire:v0.2.0}
+    command: ["--allow-http", "--setup", "--data-dir", "/appdata", "--external-url", "${DOCKSPIRE_EXTERNAL_URL:-}"]
+    restart: unless-stopped
+    ports:
+      - "${DOCKSPIRE_BIND_ADDRESS:-0.0.0.0}:${DOCKSPIRE_HTTP_PORT:-8787}:8787"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - dockspire_data:/appdata
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "/stacklane", "--healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+volumes:
+  dockspire_data:
+    name: dockspire_data
 ```
 
-Then validate and start Dockspire from that directory:
+Once you have created or downloaded the Compose file, deploy Dockspire with:
 
 ```sh
-unset DOCKSPIRE_IMAGE
-docker compose config --quiet
-docker compose pull app
-docker compose up -d --no-deps app
-docker compose ps
+docker compose -f dockspire-compose.yaml up -d
 ```
 
-Compose creates the persistent `dockspire_data` volume automatically. Check startup with `docker compose logs app` and `docker compose exec -T app /stacklane --healthcheck`. For the complete copy-and-paste YAML and configuration options, see [Docker Compose installation](docs/INSTALL.md#install-with-docker-compose).
+Compose creates the necessary resources, including the persistent data volume. Check that the container has started:
+
+```sh
+docker ps
+```
+
+Continue with [Logging in](#logging-in). No `.env` file or image export is required. For optional settings and diagnostics, see [Docker Compose installation](docs/INSTALL.md#install-with-docker-compose).
 
 ### Docker run
 
-Create the persistent volume and start the container:
+First, create the volume that Dockspire will use to store its data:
 
 ```sh
 docker volume create dockspire_data
+```
+
+Then, download and start the Dockspire container:
+
+```sh
 docker run -d \
   --name dockspire \
   --restart unless-stopped \
@@ -65,11 +96,25 @@ docker run -d \
   ghcr.io/mayo-nas/dockspire:v0.2.0
 ```
 
-Check startup with `docker ps --filter name=^/dockspire$`, `docker logs dockspire` and `docker exec dockspire /stacklane --healthcheck`. See [Docker run installation](docs/INSTALL.md#install-with-docker) for configuration options.
+Check that the container has started:
 
-### Open Dockspire
+```sh
+docker ps
+```
 
-Open `http://SERVER-IP:8787` and create the `admin` password within five minutes. Replace `SERVER-IP` with your server's IP address, or use `localhost` when browsing on the server. If setup expires, run `docker compose restart app` from the installation directory, or `docker restart dockspire` for Docker run. See [administrator setup](docs/INSTALL.md#create-the-administrator).
+For optional settings and diagnostics, see [Docker run installation](docs/INSTALL.md#install-with-docker).
+
+### Logging in
+
+Now that installation is complete, open a web browser and go to:
+
+```text
+http://localhost:8787
+```
+
+Replace `localhost` with your server's IP address when browsing from another computer, and adjust the port if you changed it. For a DNS name, configure the exact external origin using the [Compose settings](docs/INSTALL.md#optional-compose-settings-and-diagnostics) or [Docker run settings](docs/INSTALL.md#optional-docker-run-settings).
+
+You will be presented with Dockspire's initial setup page. Create the `admin` password within five minutes. If setup expires, run `docker compose -f dockspire-compose.yaml restart app` from the installation directory, or `docker restart dockspire` for Docker run. See [administrator setup](docs/INSTALL.md#create-the-administrator).
 
 HTTP carries passwords and sessions without encryption. Use a trusted management network: any reachable client can claim first administrator during the setup window. Choose any password, or explicitly leave both fields blank for persistent passwordless access: anyone who can reach Dockspire can then control this Docker host without signing in. Optional HTTPS and a pinned DNS origin remain available in the installation guide. No certificate fingerprint or log token is needed for HTTP setup.
 
