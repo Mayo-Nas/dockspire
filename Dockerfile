@@ -1,4 +1,4 @@
-FROM golang:1.27.3@sha256:6928d94d1142af58816fed5a62338d605a266ccd53a0deaab6b1096f19059261 AS build
+FROM golang:1.27.4@sha256:205c7636d74e0ffbe3d007162df7d74f859f5a8c8322dfb9f907977686c126cf AS build
 ENV GOTOOLCHAIN=local GOTELEMETRY=off
 RUN test "$(go env GOVERSION)" = "go1.27.3"
 WORKDIR /src
@@ -11,7 +11,7 @@ COPY licenses ./licenses
 ARG VERSION=dev
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X github.com/Mayo-Nas/dockspire/internal/app.Version=${VERSION}" -o /dockspire ./cmd/dockspire
 
-FROM golang:1.27.3@sha256:6928d94d1142af58816fed5a62338d605a266ccd53a0deaab6b1096f19059261 AS compose
+FROM golang:1.27.4@sha256:205c7636d74e0ffbe3d007162df7d74f859f5a8c8322dfb9f907977686c126cf AS compose
 ENV GOTOOLCHAIN=local GOTELEMETRY=off CGO_ENABLED=0
 WORKDIR /compose
 RUN test "$(go env GOVERSION)" = "go1.27.3"
