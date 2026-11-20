@@ -45,7 +45,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version: '1.27.3'
           cache: true
@@ -116,7 +116,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Set up pinned Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version: '1.27.3'
       - name: Install pinned scanner and scan with full redaction
@@ -143,7 +143,7 @@ jobs:
           docker build -t dockspire:ci .
           bash tests/test-container.sh dockspire:ci
       - name: Set up Go for image vulnerability checks
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version: '1.27.3'
       - name: Check explicit takeover with disposable workloads
@@ -194,7 +194,7 @@ jobs:
           DOCKSPIRE_BASELINE_PACKAGE_VISIBILITY: ${{ vars.DOCKSPIRE_BASELINE_PACKAGE_VISIBILITY || 'private' }}
         run: bash scripts/pull-upgrade-baseline.sh
       - name: Set up pinned Go for the isolated measurement probe
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version: '1.27.3'
       - name: Build standard-library-only Linux measurement probe
